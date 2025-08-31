@@ -2,88 +2,110 @@
 
 A tiny single-file GUI downloader for HLS (.m3u8) streams that wraps ffmpeg.
 
-This project provides a minimal Tkinter-based GUI (`hls_gui.py`) which uses
-`ffmpeg`/`ffprobe` to download and package HLS streams to MP4 or MKV without
-re-encoding. The script is intentionally self-contained and includes light
-checks to help macOS users install missing dependencies via Homebrew.
+This repository contains:
 
-## Features
+- `hls_gui.py` — single-file Tkinter GUI that uses `ffmpeg`/`ffprobe` to
+  download HLS to MP4/MKV without re-encoding.
+- `m3u8_dl.py` — a small command-line helper for scripted downloads.
 
-- Paste an `.m3u8` URL.
-- Choose destination and filename (Save As...).
-- Progress bar and log output (uses `ffmpeg -progress`).
-- Attempts to help install `ffmpeg` / `ffprobe` and `python-tk` on macOS.
+Key design goals:
+
+- Single-file GUI for easy copy-to-machine distribution.
+- Minimal dependencies (Python + ffmpeg). On macOS the script can help install
+  missing tools via Homebrew.
+
+## Highlights
+
+- Paste an `.m3u8` URL and click Download.
+- Save As flow for choosing destination and renaming.
+- Progress bar driven by `ffmpeg -progress` and a log window for ffmpeg output.
+- Optional auto-install helpers for Homebrew (opt-in only).
 
 ## Requirements
 
-- macOS (tested conceptually; works on other platforms with Python/Tkinter and ffmpeg)
-- Python 3.10+ (3.13 recommended via Homebrew on recent macOS)
-- ffmpeg and ffprobe available on PATH
-- Tkinter available for the Python installation (GUI)
+- Python 3.10+ (Homebrew Python recommended on macOS)
+- ffmpeg + ffprobe on PATH
+- Tkinter available for the chosen Python interpreter
 
-On macOS it's easiest to use Homebrew to install missing components.
+On macOS, Homebrew simplifies installing missing pieces.
 
-## Quick start (macOS)
+## Install & run (macOS)
 
-1. Install Homebrew (if you don't have it):
+Install Homebrew if needed:
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-2. Install Python and ffmpeg (if needed):
+Install dependencies (interactive):
 
 ```bash
-# Install Python 3
-brew install python
-
-# Install ffmpeg
-brew install ffmpeg
-
-# If tkinter is missing for the Homebrew Python build, install the matching package
-# (the script will suggest the correct package name, e.g. python-tk@3.13):
+brew install python ffmpeg
+# If tkinter is missing for the Homebrew Python build, install python-tk@<version>
+# (the script will suggest the matching package):
 brew install python-tk@3.13
 ```
 
-3. Run the GUI:
+Run the GUI:
 
 ```bash
-python3 "hls_gui.py"
+python3 hls_gui.py
 ```
 
-The script will also detect missing `ffmpeg`/`ffprobe` or `python-tk` and offer
-to install them via Homebrew when run interactively.
+Auto-install (non-interactive):
+
+```bash
+# using environment variable
+HLS_DOWNLOADER_AUTO_INSTALL=1 python3 hls_gui.py
+
+# or using CLI flag
+python3 hls_gui.py --auto-install
+```
+
+The auto-install feature is opt-in. When enabled the script will run Homebrew
+installs automatically (no user prompts).
 
 ## Usage
 
-1. Paste an `.m3u8` URL into the URL field.
-2. Click "Choose…" to pick output folder and filename (or leave default).
-3. Click "Download". Progress and logs will appear in the window.
+1. Paste a `.m3u8` URL into the field.
+2. (Optional) Click "Choose…" to pick output path and filename.
+3. Click "Download" and watch progress in the bar and the log.
 
-The output file will be written without re-encoding (stream copy). For MP4 the
-script applies the `aac_adtstoasc` bitstream filter and `+faststart` movflag to
-make the file streamable.
+The script streams the input and performs stream-copy; the resulting MP4/MKV
+is not re-encoded.
+
+## Release notes & changelog
+
+This repository uses a lightweight changelog maintained in `README.md` for now.
+
+### Unreleased
+
+- Improve GUI: add prereq installer and macOS-friendly Tkinter handling
+- Add README and auto-install opt-in
+
+### v0.1.0 — Initial public release
+
+- Basic GUI downloader and CLI helper
+
+## Releasing a new version
+
+Suggested minimal release checklist:
+
+1. Bump version in README/changelog.
+2. Run a quick smoke test on a clean macOS environment (Homebrew Python).
+3. Tag the commit: `git tag -a v0.1.0 -m "v0.1.0"` and push tags: `git push --tags`.
+4. Create a GitHub release from the tag.
 
 ## Troubleshooting
 
-- "Tkinter not available": If you see this, install Python from python.org or
-  use Homebrew's `python` and install `python-tk@<version>` (the GUI will
-  suggest the matching package).
-- "ffmpeg not found": Install via Homebrew: `brew install ffmpeg`.
-- Permission errors writing to the destination: pick a folder under your
-  home directory, or run the script with appropriate permissions.
-
-## Development notes
-
-- The main script is `hls_gui.py` and is intentionally a single-file app so you
-  can copy it to another machine easily.
-- There's also a small CLI helper `m3u8_dl.py` included for command-line use.
-
-## License
-
-This repository does not include a license file. Add a LICENSE if you want to
-set reuse terms.
+- Tkinter missing: use Homebrew's `python` and install `python-tk@<version>` or
+  install Python from python.org (bundles Tk).
+- ffmpeg missing: `brew install ffmpeg`.
 
 ## Contributing
 
-Open a PR with improvements. Small, well-documented changes are welcome.
+PRs welcome. Keep changes small and documented.
+
+## License
+
+Add a LICENSE file if you want to set reuse terms.
