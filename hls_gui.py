@@ -6,27 +6,108 @@ Simple HLS (.m3u8) video downloader with a tiny GUI (Tkinter) that wraps ffmpeg.
 - Progress bar (uses ffmpeg -progress pipe)
 - Log window
 
-Requirements: Python 3, ffmpeg in PATH (e.g., `brew install ffmpeg` on macOS).
+This single-file script includes a small prerequisite checker for macOS:
+- Verifies Python's Tkinter is importable.
+- Verifies `ffmpeg` and `ffprobe` are available; if missing and Homebrew
+    is installed, offers to install ffmpeg automatically.
+
+Run:
+    python3 hls_gui.py
+
+Requirements: Python 3.10+ recommended, Homebrew (optional, used for installing ffmpeg).
 """
 import os
 import sys
 import threading
 import subprocess
 import shlex
+import shutil
 from urllib.parse import urlparse
 
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-from tkinter.scrolledtext import ScrolledText
+try:
+    import tkinter as tk
+    from tkinter import ttk, filedialog, messagebox
+    from tkinter.scrolledtext import ScrolledText
+except Exception:
+    # Try to offer Homebrew install on macOS if brew exists
+    brew = shutil.which("brew")
+    if sys.platform == "darwin" and brew:
+        ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+        pkg = f"python-tk@{ver}"
+        print("Tkinter not available.")
+        print(f"Homebrew detected. I can try to install '{pkg}' now (this runs: brew install {pkg}).")
+        try:
+            ans = input(f"Install {pkg} via Homebrew now? [y/N]: ").strip().lower()
+        except Exception:
+            ans = "n"
+        if ans == "y":
+            code = subprocess.call([brew, "install", pkg])
+            if code == 0:
+                # try import again
+                try:
+                    import tkinter as tk
+                    from tkinter import ttk, filedialog, messagebox
+                    from tkinter.scrolledtext import ScrolledText
+                except Exception:
+                    print("Installation finished but tkinter still isn't importable. You may need to install Python from python.org or reboot your terminal.", file=sys.stderr)
+                    sys.exit(1)
+            else:
+                print(f"Homebrew install failed (exit code {code}). Please run: brew install {pkg}", file=sys.stderr)
+                sys.exit(1)
+
+    # Tkinter still not available -> instruct user
+    print("Error: Tkinter not available. On macOS, install Python from python.org or install tkinter via Homebrew (e.g. 'brew install python-tk@3.13').", file=sys.stderr)
+    sys.exit(1)
 
 # ---------------------------- helpers ---------------------------- #
 
 def which(bin_name: str) -> str | None:
-    for p in os.environ.get("PATH", "").split(os.pathsep):
-        cand = os.path.join(p, bin_name)
-        if os.path.isfile(cand) and os.access(cand, os.X_OK):
-            return cand
-    return None
+    # Prefer shutil.which where available
+    return shutil.which(bin_name)
+
+
+def ensure_prereqs(interactive: bool = True) -> None:
+    """Ensure ffmpeg and ffprobe are available. On macOS, offer to install via Homebrew.
+
+    If interactive is False, the function will only raise SystemExit when
+    a prereq is missing (it won't attempt to install).
+    """
+    missing = []
+    for tool in ("ffmpeg", "ffprobe"):
+        if which(tool) is None:
+            missing.append(tool)
+
+    if not missing:
+        return
+
+    brew = which("brew")
+    if brew and interactive:
+        print("Missing tools:", ", ".join(missing))
+        print("Homebrew detected. I can install ffmpeg for you (this will run 'brew install ffmpeg').")
+        ans = input("Install ffmpeg via Homebrew now? [y/N]: ").strip().lower()
+        if ans == "y":
+            cmd = [brew, "install", "ffmpeg"]
+            print("Running:", " ".join(shlex.quote(x) for x in cmd))
+            code = subprocess.call(cmd)
+            if code != 0:
+                print("Homebrew install failed (exit code", code, "). Please install ffmpeg manually:")
+                print("  brew install ffmpeg")
+                sys.exit(1)
+            # re-check
+            for tool in ("ffmpeg", "ffprobe"):
+                if which(tool) is None:
+                    print(f"{tool} still missing after install. Please install it manually.")
+                    sys.exit(1)
+            return
+
+    # If we reach here, either brew wasn't available or interactive install declined
+    print("Required tools missing: " + ", ".join(missing), file=sys.stderr)
+    if not brew:
+        print("Homebrew not found. On macOS, install Homebrew first: https://brew.sh/", file=sys.stderr)
+        print("Then run: brew install ffmpeg", file=sys.stderr)
+    else:
+        print("Install ffmpeg with: brew install ffmpeg", file=sys.stderr)
+    raise SystemExit(1)
 
 
 def guess_filename_from_url(url: str, ext: str = "mp4") -> str:
@@ -124,8 +205,11 @@ class DownloaderApp:
             messagebox.showerror("Missing URL", "Please paste a .m3u8 URL.")
             return
 
-        if which("ffmpeg") is None:
-            messagebox.showerror("ffmpeg not found", "Install ffmpeg (e.g., `brew install ffmpeg`) and try again.")
+        # Ensure prerequisites (interactive). If missing, this will prompt or exit.
+        try:
+            ensure_prereqs(interactive=True)
+        except SystemExit:
+            messagebox.showerror("Missing prerequisites", "ffmpeg/ffprobe are required. See terminal for instructions.")
             return
 
         out_path = self.out_var.get().strip()
