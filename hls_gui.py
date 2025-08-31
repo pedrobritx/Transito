@@ -35,12 +35,12 @@ except Exception:
         ver = f"{sys.version_info.major}.{sys.version_info.minor}"
         pkg = f"python-tk@{ver}"
         print("Tkinter not available.")
-        print(f"Homebrew detected. I can try to install '{pkg}' now (this runs: brew install {pkg}).")
-        try:
-            ans = input(f"Install {pkg} via Homebrew now? [y/N]: ").strip().lower()
-        except Exception:
-            ans = "n"
-        if ans == "y":
+        # decide auto-install at runtime (env var or CLI flag)
+        _auto_install = os.environ.get("HLS_DOWNLOADER_AUTO_INSTALL", "0").lower() in ("1", "true", "yes") or any(
+            a in ("--auto-install", "--yes", "-y") for a in sys.argv
+        )
+        if _auto_install:
+            print(f"Auto-install enabled: installing '{pkg}' via Homebrew...")
             code = subprocess.call([brew, "install", pkg])
             if code == 0:
                 # try import again
@@ -54,10 +54,36 @@ except Exception:
             else:
                 print(f"Homebrew install failed (exit code {code}). Please run: brew install {pkg}", file=sys.stderr)
                 sys.exit(1)
+        else:
+            print(f"Homebrew detected. I can try to install '{pkg}' now (this runs: brew install {pkg}).")
+            try:
+                ans = input(f"Install {pkg} via Homebrew now? [y/N]: ").strip().lower()
+            except Exception:
+                ans = "n"
+            if ans == "y":
+                code = subprocess.call([brew, "install", pkg])
+                if code == 0:
+                    # try import again
+                    try:
+                        import tkinter as tk
+                        from tkinter import ttk, filedialog, messagebox
+                        from tkinter.scrolledtext import ScrolledText
+                    except Exception:
+                        print("Installation finished but tkinter still isn't importable. You may need to install Python from python.org or reboot your terminal.", file=sys.stderr)
+                        sys.exit(1)
+                else:
+                    print(f"Homebrew install failed (exit code {code}). Please run: brew install {pkg}", file=sys.stderr)
+                    sys.exit(1)
 
     # Tkinter still not available -> instruct user
     print("Error: Tkinter not available. On macOS, install Python from python.org or install tkinter via Homebrew (e.g. 'brew install python-tk@3.13').", file=sys.stderr)
     sys.exit(1)
+
+
+# Auto-install opt-in: environment variable or CLI flags (--auto-install, --yes)
+AUTO_INSTALL = os.environ.get("HLS_DOWNLOADER_AUTO_INSTALL", "0").lower() in ("1", "true", "yes") or any(
+    a in ("--auto-install", "--yes", "-y") for a in sys.argv
+)
 
 # ---------------------------- helpers ---------------------------- #
 
@@ -66,7 +92,7 @@ def which(bin_name: str) -> str | None:
     return shutil.which(bin_name)
 
 
-def ensure_prereqs(interactive: bool = True) -> None:
+def ensure_prereqs(interactive: bool = True, auto_install: bool = False) -> None:
     """Ensure ffmpeg and ffprobe are available. On macOS, offer to install via Homebrew.
 
     If interactive is False, the function will only raise SystemExit when
@@ -81,11 +107,10 @@ def ensure_prereqs(interactive: bool = True) -> None:
         return
 
     brew = which("brew")
-    if brew and interactive:
-        print("Missing tools:", ", ".join(missing))
-        print("Homebrew detected. I can install ffmpeg for you (this will run 'brew install ffmpeg').")
-        ans = input("Install ffmpeg via Homebrew now? [y/N]: ").strip().lower()
-        if ans == "y":
+    if brew:
+        if auto_install:
+            # Non-interactive install path
+            print("Auto-install enabled: installing ffmpeg via Homebrew...")
             cmd = [brew, "install", "ffmpeg"]
             print("Running:", " ".join(shlex.quote(x) for x in cmd))
             code = subprocess.call(cmd)
@@ -99,6 +124,24 @@ def ensure_prereqs(interactive: bool = True) -> None:
                     print(f"{tool} still missing after install. Please install it manually.")
                     sys.exit(1)
             return
+        elif interactive:
+            print("Missing tools:", ", ".join(missing))
+            print("Homebrew detected. I can install ffmpeg for you (this will run 'brew install ffmpeg').")
+            ans = input("Install ffmpeg via Homebrew now? [y/N]: ").strip().lower()
+            if ans == "y":
+                cmd = [brew, "install", "ffmpeg"]
+                print("Running:", " ".join(shlex.quote(x) for x in cmd))
+                code = subprocess.call(cmd)
+                if code != 0:
+                    print("Homebrew install failed (exit code", code, "). Please install ffmpeg manually:")
+                    print("  brew install ffmpeg")
+                    sys.exit(1)
+                # re-check
+                for tool in ("ffmpeg", "ffprobe"):
+                    if which(tool) is None:
+                        print(f"{tool} still missing after install. Please install it manually.")
+                        sys.exit(1)
+                return
 
     # If we reach here, either brew wasn't available or interactive install declined
     print("Required tools missing: " + ", ".join(missing), file=sys.stderr)
