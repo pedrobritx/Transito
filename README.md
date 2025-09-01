@@ -4,9 +4,9 @@ A tiny single-file GUI downloader for HLS (.m3u8) streams that wraps ffmpeg.
 
 This repository contains:
 
-- `hls_gui.py` — single-file Tkinter GUI that uses `ffmpeg`/`ffprobe` to
+- `transito_gui.py` — single-file Tkinter GUI that uses `ffmpeg`/`ffprobe` to
   download HLS to MP4/MKV without re-encoding.
-- `m3u8_dl.py` — a small command-line helper for scripted downloads.
+- `transito.py` — a small command-line helper for scripted downloads.
 
 Key design goals:
 
