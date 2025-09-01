@@ -1,4 +1,4 @@
-# HLS Downloader
+# Transito - HLS Downloader
 
 A tiny single-file GUI downloader for HLS (.m3u8) streams that wraps ffmpeg.
 
