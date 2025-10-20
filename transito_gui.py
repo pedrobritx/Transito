@@ -489,7 +489,7 @@ def human_time_ms(ms: int) -> str:
 class DownloaderApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("Transito — HLS Downloader (v0.1.0)")
+        self.root.title("Transito — HLS Downloader (v0.2.0)")
         self.root.geometry("700x500")
 
         self.url_var = tk.StringVar()
