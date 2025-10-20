@@ -41,29 +41,38 @@ Install dependencies (interactive):
 
 ```bash
 brew install python ffmpeg
-# If tkinter is missing for the Homebrew Python build, install python-tk@<version>
-# (the script will suggest the matching package):
-brew install python-tk@3.13
+# If Tkinter is missing for your Homebrew Python, install python-tk@<version>.
+# The GUI can auto-suggest the correct version (e.g., 3.14 or 3.13) and install it.
+# Example:
+#   brew install python-tk@3.14
 ```
 
 Run the GUI:
 
 ```bash
-python3 hls_gui.py
+python3 transito_gui.py
 ```
 
 Auto-install (non-interactive):
 
 ```bash
 # using environment variable
-HLS_DOWNLOADER_AUTO_INSTALL=1 python3 hls_gui.py
+HLS_DOWNLOADER_AUTO_INSTALL=1 python3 transito_gui.py
 
 # or using CLI flag
-python3 hls_gui.py --auto-install
+python3 transito_gui.py --auto-install
 ```
 
 The auto-install feature is opt-in. When enabled the script will run Homebrew
 installs automatically (no user prompts).
+
+Run the CLI helper:
+
+```bash
+python3 transito.py "https://example.com/path/playlist.m3u8" [output.mp4]
+# Optional headers:
+python3 transito.py --user-agent "UA" --referer "https://ref.example" "https://.../playlist.m3u8"
+```
 
 ## Usage
 
@@ -98,8 +107,9 @@ Suggested minimal release checklist:
 
 ## Troubleshooting
 
-- Tkinter missing: use Homebrew's `python` and install `python-tk@<version>` or
-  install Python from python.org (bundles Tk).
+- Tkinter missing: use Homebrew's `python` and install `python-tk@<version>` that
+  matches your `python3 --version` (e.g., `python-tk@3.14`). The GUI can auto-install
+  it when run with `--auto-install` or `HLS_DOWNLOADER_AUTO_INSTALL=1`.
 - ffmpeg missing: `brew install ffmpeg`.
 
 ## Contributing
