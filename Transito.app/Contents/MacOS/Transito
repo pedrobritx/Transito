@@ -5,6 +5,12 @@
 
 set -e
 
+# Ensure PATH includes common Homebrew locations when launched from Finder
+DEFAULT_PATHS="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+if ! echo "$PATH" | grep -q "/opt/homebrew/bin\|/usr/local/bin"; then
+    export PATH="$DEFAULT_PATHS:$PATH"
+fi
+
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(dirname "$SCRIPT_DIR")"
