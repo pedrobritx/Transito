@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AppKit
 
 struct ContentView: View {
     @StateObject private var downloadManager = DownloadManager()
@@ -8,93 +9,132 @@ struct ContentView: View {
     @State private var outputPath: String = ""
     
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Transito")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text("HLS Downloader")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            VStack(spacing: 15) {
-                // URL input with drag-drop support
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("M3U8 URL:")
-                        .font(.headline)
-                    
-                    TextField("Paste M3U8 URL or drag here", text: $url)
-                        .textFieldStyle(.roundedBorder)
-                        .onDrop(of: [.url, .text], isTargeted: $isDragging) { providers in
-                            handleDrop(providers: providers)
-                        }
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(isDragging ? Color.blue : Color.clear, lineWidth: 2)
-                        )
+        ZStack {
+            // Background glass gradient with vibrancy
+            VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                .ignoresSafeArea()
+
+            AngularGradient(
+                gradient: Gradient(colors: [
+                    Color.white.opacity(0.35),
+                    Color.blue.opacity(0.20),
+                    Color.purple.opacity(0.20),
+                    Color.white.opacity(0.35)
+                ]),
+                center: .center
+            )
+            .blur(radius: 40)
+            .ignoresSafeArea()
+
+            // Content card with ultraThinMaterial
+            VStack(spacing: 18) {
+                VStack(spacing: 4) {
+                    Text("Transito")
+                        .font(.system(size: 34, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 8)
+                    Text("HLS Downloader")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
                 }
-                
-                // Output path
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Save to:")
-                        .font(.headline)
-                    
-                    HStack {
-                        TextField("Output filename", text: $outputPath)
-                            .textFieldStyle(.roundedBorder)
-                        
-                        Button("Choose...") {
-                            selectOutputPath()
+
+                VStack(spacing: 16) {
+                    // URL input with drag-drop support
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("M3U8 URL")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 10) {
+                            Image(systemName: "link")
+                                .foregroundStyle(.secondary)
+                            TextField("Paste M3U8 URL or drag here", text: $url)
+                                .textFieldStyle(.plain)
+                                .padding(10)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .onDrop(of: [.url, .text], isTargeted: $isDragging) { providers in
+                                    handleDrop(providers: providers)
+                                }
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(isDragging ? Color.accentColor.opacity(0.6) : Color.white.opacity(0.12), lineWidth: 1)
+                                        .shadow(color: .black.opacity(isDragging ? 0.2 : 0.05), radius: isDragging ? 8 : 4, x: 0, y: 2)
+                                )
                         }
                     }
-                }
-                
-                // Download button
-                Button(action: {
-                    Task {
-                        await downloadManager.download(url: url, outputPath: outputPath)
-                    }
-                }) {
-                    HStack {
-                        if downloadManager.isDownloading {
-                            ProgressView()
-                                .scaleEffect(0.8)
+
+                    // Output path
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Save to")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 10) {
+                            Image(systemName: "folder")
+                                .foregroundStyle(.secondary)
+                            TextField("Output filename", text: $outputPath)
+                                .textFieldStyle(.plain)
+                                .padding(10)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                )
+                            Button(action: selectOutputPath) {
+                                Label("Choose", systemImage: "ellipsis.circle")
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        Text(downloadManager.isDownloading ? "Downloading..." : "Download")
                     }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(url.isEmpty || downloadManager.isDownloading)
-                
-                // Progress view
-                if downloadManager.isDownloading {
-                    VStack(spacing: 10) {
-                        ProgressView(value: downloadManager.progress)
+
+                    // Download button
+                    Button(action: {
+                        Task { await downloadManager.download(url: url, outputPath: outputPath) }
+                    }) {
+                        HStack(spacing: 8) {
+                            if downloadManager.isDownloading { ProgressView().scaleEffect(0.8) }
+                            Text(downloadManager.isDownloading ? "Downloading…" : "Download")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(url.isEmpty || downloadManager.isDownloading)
+
+                    // Progress view
+                    if downloadManager.isDownloading {
+                        VStack(spacing: 10) {
+                            ProgressView(value: downloadManager.progress)
+                                .tint(.accentColor)
+                            Text(downloadManager.statusMessage)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 4)
+                    }
+
+                    // Status message
+                    if !downloadManager.statusMessage.isEmpty && !downloadManager.isDownloading {
                         Text(downloadManager.statusMessage)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(downloadManager.isError ? .red : .green)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 4)
                     }
                 }
-                
-                // Status message
-                if !downloadManager.statusMessage.isEmpty && !downloadManager.isDownloading {
-                    Text(downloadManager.statusMessage)
-                        .font(.caption)
-                        .foregroundColor(downloadManager.isError ? .red : .green)
-                        .multilineTextAlignment(.center)
-                }
+                .padding(20)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(.white.opacity(0.08), lineWidth: 1)
+                        .blendMode(.overlay)
+                )
+                .shadow(color: .black.opacity(0.25), radius: 30, x: 0, y: 20)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
             }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(12)
+            .padding(.top, 36)
         }
-        .padding()
-        .frame(width: 600, height: 500)
-        .onAppear {
-            // Request notification permissions
-            downloadManager.requestNotificationPermission()
-        }
+        .onAppear { downloadManager.requestNotificationPermission() }
     }
     
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
@@ -141,4 +181,26 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+}
+
+// MARK: - VisualEffectView wrapper for NSVisualEffectView
+struct VisualEffectView: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .appearanceBased
+    var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
+    var state: NSVisualEffectView.State = .active
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = state
+        view.isEmphasized = true
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+        nsView.state = state
+    }
 }
