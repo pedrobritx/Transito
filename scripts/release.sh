@@ -78,10 +78,10 @@ else
     zip -r "$DIST_NAME-macOS.zip" "$DIST_NAME/"
 fi
 
-# Create CLI ZIP
+# Create CLI ZIP (place alongside macOS zip, not inside temp folder)
 echo "Creating CLI ZIP..."
 cd "$DIST_NAME/cli"
-zip -r "../$DIST_NAME-CLI.zip" .
+zip -r "../../$DIST_NAME-CLI.zip" .
 cd ../..
 
 # Clean up
