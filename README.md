@@ -1,13 +1,25 @@
 # Transito - HLS Downloader
 
-A hybrid HLS (.m3u8) downloader available as both a lightweight CLI tool and a native macOS app.
+A hybrid HLS (.m3u8) downloader available as both a lightweight CLI tool and a user-friendly GUI app for macOS.
+
+## 🎯 Two Ways to Use Transito
+
+### 1. **Command Line Interface (CLI)** - For Terminal Power Users
+
+Fast, scriptable downloads with full control over headers and options.
+
+### 2. **GUI Application (macOS)** - For Everyone Else
+
+Beautiful graphical interface with progress tracking, drag-and-drop, and no terminal needed.
 
 ## Architecture
 
 This repository contains multiple packages:
 
-- **`packages/core/`** — Standalone CLI tool (`transito`) used by both interfaces
-- **`packages/macos/`** — Native SwiftUI macOS app with drag-drop and notifications
+- **`transito.py`** — Main CLI script for terminal usage
+- **`transito_gui.py`** — GUI application with Tkinter interface
+- **`packages/core/`** — Standalone CLI tool used by both interfaces
+- **`packages/macos/`** — macOS app bundle configuration
 - **`packages/homebrew/`** — Homebrew formula for CLI installation
 - **`scripts/`** — Build and distribution scripts
 
@@ -51,32 +63,46 @@ sudo chmod +x /usr/local/bin/transito
 
 ## Usage
 
-### CLI Usage
+### CLI Usage (Terminal)
+
+Use `transito.py` for command-line downloads:
 
 ```bash
 # Basic download
-transito https://example.com/playlist.m3u8
+./transito.py https://example.com/playlist.m3u8
 
 # Specify output file
-transito https://example.com/playlist.m3u8 output.mp4
+./transito.py https://example.com/playlist.m3u8 output.mp4
 
 # With custom headers
-transito --user-agent "Custom UA" --referer "https://ref.com" https://example.com/playlist.m3u8
-
-# Show progress
-transito --progress https://example.com/playlist.m3u8
+./transito.py --user-agent "Custom UA" --referer "https://ref.com" https://example.com/playlist.m3u8
 
 # Dry run (show command without executing)
-transito --dry-run https://example.com/playlist.m3u8
+./transito.py --dry-run https://example.com/playlist.m3u8
 ```
 
-### GUI Usage
+### GUI Usage (macOS App or Python Script)
 
-1. **Launch Transito.app**
-2. **Paste or drag-drop** an M3U8 URL
-3. **Choose output location** (optional)
-4. **Click Download** and watch progress
-5. **Get notified** when complete
+**Option A: Launch the macOS App**
+
+1. Double-click **Transito.app**
+2. Paste an M3U8 URL
+3. Choose output location (or use default ~/Downloads)
+4. Click **Download** and watch progress
+5. Open folder when complete
+
+**Option B: Launch Python GUI directly**
+
+```bash
+./transito_gui.py
+```
+
+Both options provide the same graphical interface with:
+
+- Progress tracking with duration estimates
+- Visual feedback and status updates
+- Error logging in the console area
+- Open folder button when download completes
 
 ## Requirements
 
