@@ -53,8 +53,10 @@ def main():
     extra = build_headers(args)
     cmd = [
         'ffmpeg', '-hide_banner', '-loglevel', 'warning', '-nostdin',
+        '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '30',
         *extra,
         '-i', url,
+        '-map', '0:v?', '-map', '0:a?',  # Map only video and audio, skip subtitles
         '-c', 'copy', '-bsf:a', 'aac_adtstoasc', '-movflags', '+faststart',
         out,
     ]

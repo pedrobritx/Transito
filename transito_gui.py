@@ -442,7 +442,7 @@ class DownloaderApp:
             "-nostdin",
             "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "30",
             "-i", url,
-            "-map", "0",
+            "-map", "0:v?", "-map", "0:a?",  # Map only video and audio, skip subtitles
             "-c", "copy",
             "-bsf:a", "aac_adtstoasc",
             "-movflags", "+faststart",
