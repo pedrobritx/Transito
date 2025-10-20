@@ -117,6 +117,166 @@ def ensure_prereqs(interactive: bool = True, auto_install: bool = False) -> None
     raise SystemExit(1)
 
 
+def show_dependency_dialog(missing_tools: list, root_window=None) -> bool:
+    """Show a user-friendly dialog for missing dependencies with install options."""
+    if not missing_tools:
+        return True
+    
+    # Create a dialog window
+    dialog = tk.Toplevel(root_window) if root_window else tk.Tk()
+    dialog.title("Missing Dependencies")
+    dialog.geometry("500x400")
+    dialog.resizable(False, False)
+    
+    # Center the dialog
+    if root_window:
+        dialog.transient(root_window)
+        dialog.grab_set()
+    
+    # Main frame
+    main_frame = ttk.Frame(dialog, padding="20")
+    main_frame.pack(fill=tk.BOTH, expand=True)
+    
+    # Title
+    title_label = ttk.Label(main_frame, text="Missing Required Tools", font=("Arial", 16, "bold"))
+    title_label.pack(pady=(0, 10))
+    
+    # Missing tools list
+    tools_text = "\n".join(f"• {tool}" for tool in missing_tools)
+    tools_label = ttk.Label(main_frame, text=f"Transito needs these tools:\n\n{tools_text}", 
+                           justify=tk.LEFT, font=("Arial", 12))
+    tools_label.pack(pady=(0, 20))
+    
+    # Install instructions
+    instructions = """Installation Options:
+
+1. Install via Homebrew (Recommended):
+   • Open Terminal
+   • Run: brew install ffmpeg
+   • Restart Transito
+
+2. Install from official website:
+   • Visit: https://ffmpeg.org/download.html
+   • Download and install ffmpeg
+   • Add to your PATH
+
+3. Use Transito's auto-installer:
+   • Click 'Install Now' below
+   • Follow the prompts"""
+    
+    instructions_label = ttk.Label(main_frame, text=instructions, justify=tk.LEFT, 
+                                  font=("Arial", 10), foreground="gray")
+    instructions_label.pack(pady=(0, 20))
+    
+    # Buttons frame
+    buttons_frame = ttk.Frame(main_frame)
+    buttons_frame.pack(fill=tk.X, pady=(0, 10))
+    
+    install_result = {"installed": False}
+    
+    def install_now():
+        """Attempt to install ffmpeg via Homebrew."""
+        brew = which("brew")
+        if not brew:
+            messagebox.showerror("Homebrew Not Found", 
+                               "Homebrew is required for auto-installation.\n\n"
+                               "Please install Homebrew first:\n"
+                               "https://brew.sh/\n\n"
+                               "Then run: brew install ffmpeg")
+            return
+        
+        # Show progress dialog
+        progress_dialog = tk.Toplevel(dialog)
+        progress_dialog.title("Installing ffmpeg")
+        progress_dialog.geometry("400x150")
+        progress_dialog.resizable(False, False)
+        progress_dialog.transient(dialog)
+        progress_dialog.grab_set()
+        
+        progress_frame = ttk.Frame(progress_dialog, padding="20")
+        progress_frame.pack(fill=tk.BOTH, expand=True)
+        
+        progress_label = ttk.Label(progress_frame, text="Installing ffmpeg via Homebrew...\nThis may take a few minutes.", 
+                                 justify=tk.CENTER)
+        progress_label.pack(pady=(0, 10))
+        
+        progress_bar = ttk.Progressbar(progress_frame, mode='indeterminate')
+        progress_bar.pack(fill=tk.X, pady=(0, 10))
+        progress_bar.start()
+        
+        def install_thread():
+            try:
+                cmd = [brew, "install", "ffmpeg"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)  # 10 min timeout
+                
+                dialog.after(0, lambda: progress_dialog.destroy())
+                
+                if result.returncode == 0:
+                    # Check if tools are now available
+                    all_found = all(which(tool) for tool in missing_tools)
+                    if all_found:
+                        install_result["installed"] = True
+                        dialog.after(0, lambda: messagebox.showinfo("Installation Complete", 
+                                                                  "ffmpeg installed successfully!\n\n"
+                                                                  "Please restart Transito to use the new installation."))
+                        dialog.after(0, lambda: dialog.destroy())
+                    else:
+                        dialog.after(0, lambda: messagebox.showwarning("Installation Incomplete", 
+                                                                      "ffmpeg was installed but some tools are still missing.\n\n"
+                                                                      "Please restart your terminal and try again."))
+                else:
+                    error_msg = result.stderr or "Unknown error occurred"
+                    dialog.after(0, lambda: messagebox.showerror("Installation Failed", 
+                                                               f"Failed to install ffmpeg:\n\n{error_msg}\n\n"
+                                                               "Please try installing manually:\n"
+                                                               "brew install ffmpeg"))
+            except subprocess.TimeoutExpired:
+                dialog.after(0, lambda: progress_dialog.destroy())
+                dialog.after(0, lambda: messagebox.showerror("Installation Timeout", 
+                                                           "Installation took too long and was cancelled.\n\n"
+                                                           "Please try installing manually:\n"
+                                                           "brew install ffmpeg"))
+            except Exception as e:
+                dialog.after(0, lambda: progress_dialog.destroy())
+                dialog.after(0, lambda: messagebox.showerror("Installation Error", 
+                                                           f"An error occurred during installation:\n\n{str(e)}\n\n"
+                                                           "Please try installing manually:\n"
+                                                           "brew install ffmpeg"))
+        
+        threading.Thread(target=install_thread, daemon=True).start()
+    
+    def open_terminal():
+        """Open Terminal with the install command."""
+        cmd = "brew install ffmpeg"
+        if sys.platform == "darwin":
+            subprocess.run(["open", "-a", "Terminal"])
+            # Try to copy command to clipboard
+            try:
+                subprocess.run(["pbcopy"], input=cmd, text=True)
+                messagebox.showinfo("Command Copied", f"Command copied to clipboard:\n\n{cmd}\n\n"
+                                                    "Paste it in Terminal and press Enter.")
+            except:
+                messagebox.showinfo("Manual Installation", f"Please run this command in Terminal:\n\n{cmd}")
+        else:
+            messagebox.showinfo("Manual Installation", f"Please run this command in Terminal:\n\n{cmd}")
+    
+    def open_website():
+        """Open ffmpeg download website."""
+        import webbrowser
+        webbrowser.open("https://ffmpeg.org/download.html")
+    
+    # Buttons
+    ttk.Button(buttons_frame, text="Install Now", command=install_now).pack(side=tk.LEFT, padx=(0, 10))
+    ttk.Button(buttons_frame, text="Open Terminal", command=open_terminal).pack(side=tk.LEFT, padx=(0, 10))
+    ttk.Button(buttons_frame, text="Download ffmpeg", command=open_website).pack(side=tk.LEFT, padx=(0, 10))
+    ttk.Button(buttons_frame, text="Cancel", command=dialog.destroy).pack(side=tk.RIGHT)
+    
+    # Wait for dialog to close
+    dialog.wait_window()
+    
+    return install_result["installed"]
+
+
 def guess_filename_from_url(url: str, ext: str = "mp4") -> str:
     try:
         path = urlparse(url).path
@@ -202,11 +362,25 @@ class DownloaderApp:
             messagebox.showerror("Missing URL", "Please paste a .m3u8 URL.")
             return
 
-        try:
-            ensure_prereqs(interactive=True)
-        except SystemExit:
-            messagebox.showerror("Missing prerequisites", "ffmpeg/ffprobe are required. See terminal for instructions.")
-            return
+        # Check for missing dependencies and show dialog if needed
+        missing_tools = []
+        for tool in ("ffmpeg", "ffprobe"):
+            if which(tool) is None:
+                missing_tools.append(tool)
+        
+        if missing_tools:
+            if not show_dependency_dialog(missing_tools, self.root):
+                return  # User cancelled or installation failed
+            # Re-check after potential installation
+            missing_tools = []
+            for tool in ("ffmpeg", "ffprobe"):
+                if which(tool) is None:
+                    missing_tools.append(tool)
+            if missing_tools:
+                messagebox.showerror("Missing Dependencies", 
+                                   f"Still missing: {', '.join(missing_tools)}\n\n"
+                                   "Please install them and restart Transito.")
+                return
 
         out_path = self.out_var.get().strip()
         if not out_path:
@@ -351,6 +525,18 @@ def main():
             root.tk.call("tk", "scaling", 1.2)
     except Exception:
         pass
+    
+    # Check dependencies on startup and show dialog if needed
+    missing_tools = []
+    for tool in ("ffmpeg", "ffprobe"):
+        if which(tool) is None:
+            missing_tools.append(tool)
+    
+    if missing_tools:
+        if not show_dependency_dialog(missing_tools, root):
+            root.destroy()
+            return  # User cancelled
+    
     app = DownloaderApp(root)
     root.mainloop()
 

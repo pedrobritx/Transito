@@ -6,10 +6,19 @@
 set -e
 
 # Ensure PATH includes common Homebrew locations when launched from Finder
-DEFAULT_PATHS="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+DEFAULT_PATHS="/opt/homebrew/opt/ffmpeg/bin:/usr/local/opt/ffmpeg/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 if ! echo "$PATH" | grep -q "/opt/homebrew/bin\|/usr/local/bin"; then
     export PATH="$DEFAULT_PATHS:$PATH"
 fi
+
+# Minimal logging to help diagnose PATH issues when launched from Finder
+LOG_FILE="$HOME/Library/Logs/Transito.launch.log"
+{
+  echo "[Transito] Launch at $(date)"
+  echo "[Transito] PATH=$PATH"
+  echo -n "[Transito] which ffmpeg: "; which ffmpeg || true
+  echo -n "[Transito] which ffprobe: "; which ffprobe || true
+} >> "$LOG_FILE" 2>&1
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,6 +51,7 @@ if ! command -v ffprobe >/dev/null 2>&1; then
     exit 1
 fi
 
-# Launch the GUI
+# Launch the GUI with auto-install enabled
 cd "$RESOURCES_DIR"
+export HLS_DOWNLOADER_AUTO_INSTALL=1
 exec "$PYTHON3" transito_gui.py
