@@ -114,7 +114,7 @@ transito --dry-run https://example.com/playlist.m3u8
 
 ### Project Structure
 
-```
+```text
 transito/
 ├── packages/
 │   ├── core/              # CLI tool (Python)
