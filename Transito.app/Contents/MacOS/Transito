@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# Transito macOS App Launcher
+# This script ensures Python and dependencies are available before launching the GUI
+
+set -e
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="$(dirname "$SCRIPT_DIR")"
+RESOURCES_DIR="$APP_DIR/Resources"
+
+# Try to find Python 3
+PYTHON3=""
+for python_cmd in python3 /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
+    if command -v "$python_cmd" >/dev/null 2>&1; then
+        PYTHON3="$python_cmd"
+        break
+    fi
+done
+
+if [ -z "$PYTHON3" ]; then
+    osascript -e 'display dialog "Python 3 not found. Please install Python 3 from python.org or via Homebrew." buttons {"OK"} default button "OK" with title "Transito - Missing Python"'
+    exit 1
+fi
+
+# Check if ffmpeg is available
+if ! command -v ffmpeg >/dev/null 2>&1; then
+    osascript -e 'display dialog "ffmpeg not found. Please install ffmpeg via Homebrew:\n\nbrew install ffmpeg" buttons {"OK"} default button "OK" with title "Transito - Missing ffmpeg"'
+    exit 1
+fi
+
+# Check if ffprobe is available
+if ! command -v ffprobe >/dev/null 2>&1; then
+    osascript -e 'display dialog "ffprobe not found. Please install ffmpeg via Homebrew:\n\nbrew install ffmpeg" buttons {"OK"} default button "OK" with title "Transito - Missing ffprobe"'
+    exit 1
+fi
+
+# Launch the GUI
+cd "$RESOURCES_DIR"
+exec "$PYTHON3" transito_gui.py

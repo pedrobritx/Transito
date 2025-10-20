@@ -74,6 +74,28 @@ python3 transito.py "https://example.com/path/playlist.m3u8" [output.mp4]
 python3 transito.py --user-agent "UA" --referer "https://ref.example" "https://.../playlist.m3u8"
 ```
 
+## Building the macOS App
+
+To build your own macOS app bundle:
+
+```bash
+./build_app.sh
+open Transito.app
+```
+
+To create a distributable package:
+
+```bash
+./distribute.sh
+```
+
+The macOS app includes:
+
+- Native app bundle with proper icon
+- Automatic dependency checking
+- User-friendly error dialogs for missing tools
+- Support for .m3u8 file associations
+
 ## Usage
 
 1. Paste a `.m3u8` URL into the field.
