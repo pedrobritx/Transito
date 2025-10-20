@@ -1,143 +1,165 @@
 # Transito - HLS Downloader
 
-A tiny single-file GUI downloader for HLS (.m3u8) streams that wraps ffmpeg.
+A hybrid HLS (.m3u8) downloader available as both a lightweight CLI tool and a native macOS app.
 
-This repository contains:
+## Architecture
 
-- `transito_gui.py` — single-file Tkinter GUI that uses `ffmpeg`/`ffprobe` to
-  download HLS to MP4/MKV without re-encoding.
-- `transito.py` — a small command-line helper for scripted downloads.
+This repository contains multiple packages:
 
-Key design goals:
+- **`packages/core/`** — Standalone CLI tool (`transito`) used by both interfaces
+- **`packages/macos/`** — Native SwiftUI macOS app with drag-drop and notifications
+- **`packages/homebrew/`** — Homebrew formula for CLI installation
+- **`scripts/`** — Build and distribution scripts
 
-- Single-file GUI for easy copy-to-machine distribution.
-- Minimal dependencies (Python + ffmpeg). On macOS the script can help install
-  missing tools via Homebrew.
+## Installation Options
 
-## Highlights
+### Option 1: CLI Tool (Recommended for Terminal Users)
 
-- Paste an `.m3u8` URL and click Download.
-- Save As flow for choosing destination and renaming.
-- Progress bar driven by `ffmpeg -progress` and a log window for ffmpeg output.
-- Optional auto-install helpers for Homebrew (opt-in only).
-
-## Requirements
-
-- Python 3.10+ (Homebrew Python recommended on macOS)
-- ffmpeg + ffprobe on PATH
-- Tkinter available for the chosen Python interpreter
-
-On macOS, Homebrew simplifies installing missing pieces.
-
-## Install & run (macOS)
-
-Install Homebrew if needed:
+**Via Homebrew:**
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install transito
 ```
 
-Install dependencies (interactive):
+**Manual Installation:**
 
 ```bash
+# Install dependencies
 brew install python ffmpeg
-# If Tkinter is missing for your Homebrew Python, install python-tk@<version>.
-# The GUI can auto-suggest the correct version (e.g., 3.14 or 3.13) and install it.
-# Example:
-#   brew install python-tk@3.14
+
+# Download and install CLI tool
+curl -L https://github.com/yourusername/transito/releases/latest/download/transito-cli.zip -o transito-cli.zip
+unzip transito-cli.zip
+sudo cp transito /usr/local/bin/
+sudo chmod +x /usr/local/bin/transito
 ```
 
-Run the GUI:
+### Option 2: Native macOS App (Recommended for GUI Users)
 
-```bash
-python3 transito_gui.py
-```
+**Download and Install:**
 
-Auto-install (non-interactive):
+1. Download `Transito-macOS.dmg` from [releases](https://github.com/yourusername/transito/releases)
+2. Open the DMG and drag `Transito.app` to Applications
+3. Launch from Applications or Spotlight
 
-```bash
-# using environment variable
-HLS_DOWNLOADER_AUTO_INSTALL=1 python3 transito_gui.py
+**Features:**
 
-# or using CLI flag
-python3 transito_gui.py --auto-install
-```
-
-The auto-install feature is opt-in. When enabled the script will run Homebrew
-installs automatically (no user prompts).
-
-Run the CLI helper:
-
-```bash
-python3 transito.py "https://example.com/path/playlist.m3u8" [output.mp4]
-# Optional headers:
-python3 transito.py --user-agent "UA" --referer "https://ref.example" "https://.../playlist.m3u8"
-```
-
-## Building the macOS App
-
-To build your own macOS app bundle:
-
-```bash
-./build_app.sh
-open Transito.app
-```
-
-To create a distributable package:
-
-```bash
-./distribute.sh
-```
-
-The macOS app includes:
-
-- Native app bundle with proper icon
-- Automatic dependency checking
-- User-friendly error dialogs for missing tools
-- Support for .m3u8 file associations
+- Drag-drop M3U8 URLs
+- Native macOS notifications
+- Auto-downloads ffmpeg on first launch
+- Beautiful SwiftUI interface
 
 ## Usage
 
-1. Paste a `.m3u8` URL into the field.
-2. (Optional) Click "Choose…" to pick output path and filename.
-3. Click "Download" and watch progress in the bar and the log.
+### CLI Usage
 
-The script streams the input and performs stream-copy; the resulting MP4/MKV
-is not re-encoded.
+```bash
+# Basic download
+transito https://example.com/playlist.m3u8
 
-## Release notes & changelog
+# Specify output file
+transito https://example.com/playlist.m3u8 output.mp4
 
-This repository uses a lightweight changelog maintained in `README.md` for now.
+# With custom headers
+transito --user-agent "Custom UA" --referer "https://ref.com" https://example.com/playlist.m3u8
 
-### Unreleased
+# Show progress
+transito --progress https://example.com/playlist.m3u8
 
-- Improve GUI: add prereq installer and macOS-friendly Tkinter handling
-- Add README and auto-install opt-in
+# Dry run (show command without executing)
+transito --dry-run https://example.com/playlist.m3u8
+```
 
-### v0.1.0 — Initial public release
+### GUI Usage
 
-- Basic GUI downloader and CLI helper
+1. **Launch Transito.app**
+2. **Paste or drag-drop** an M3U8 URL
+3. **Choose output location** (optional)
+4. **Click Download** and watch progress
+5. **Get notified** when complete
 
-## Releasing a new version
+## Requirements
 
-Suggested minimal release checklist:
+- **macOS 13.0+** (for SwiftUI app)
+- **Python 3.10+** (for CLI tool)
+- **ffmpeg + ffprobe** (auto-installed by GUI, manual install for CLI)
 
-1. Bump version in README/changelog.
-2. Run a quick smoke test on a clean macOS environment (Homebrew Python).
-3. Tag the commit: `git tag -a v0.1.0 -m "v0.1.0"` and push tags: `git push --tags`.
-4. Create a GitHub release from the tag.
+## Development
+
+### Building from Source
+
+**CLI Tool:**
+
+```bash
+# Test the core CLI tool
+./packages/core/transito --help
+```
+
+**macOS App:**
+
+```bash
+# Build SwiftUI app
+./scripts/build_swift_app.sh
+
+# Or build Python-based app bundle
+./scripts/build_macos_app.sh
+```
+
+**Distribution Packages:**
+
+```bash
+# Create all distribution packages
+./scripts/release.sh
+```
+
+### Project Structure
+
+```
+transito/
+├── packages/
+│   ├── core/              # CLI tool (Python)
+│   │   ├── transito       # Main executable
+│   │   └── setup.py       # Package metadata
+│   ├── macos/             # SwiftUI app
+│   │   ├── Transito.xcodeproj
+│   │   └── Transito/      # Swift source files
+│   └── homebrew/          # Homebrew formula
+│       └── transito.rb
+├── scripts/               # Build scripts
+├── VERSION
+└── README.md
+```
+
+## Key Features
+
+- **Stream-copy downloads** (no re-encoding)
+- **Progress tracking** with time estimates
+- **Custom headers** support (User-Agent, Referer)
+- **Auto-reconnection** for unstable streams
+- **Cross-platform CLI** (works on Linux/Windows too)
+- **Native macOS integration** (notifications, drag-drop, file associations)
 
 ## Troubleshooting
 
-- Tkinter missing: use Homebrew's `python` and install `python-tk@<version>` that
-  matches your `python3 --version` (e.g., `python-tk@3.14`). The GUI can auto-install
-  it when run with `--auto-install` or `HLS_DOWNLOADER_AUTO_INSTALL=1`.
-- ffmpeg missing: `brew install ffmpeg`.
+**CLI Issues:**
+
+- `ffmpeg not found`: Run `brew install ffmpeg`
+- `Permission denied`: Run `sudo chmod +x /usr/local/bin/transito`
+
+**GUI Issues:**
+
+- App won't launch: Check macOS version (13.0+ required)
+- ffmpeg download fails: Check internet connection, try CLI installation
+- Notifications not working: Check System Preferences > Notifications
 
 ## Contributing
 
-PRs welcome. Keep changes small and documented.
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test both CLI and GUI
+5. Submit a pull request
 
 ## License
 
-Add a LICENSE file if you want to set reuse terms.
+MIT License - see LICENSE file for details.
