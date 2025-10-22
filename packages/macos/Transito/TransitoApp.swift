@@ -9,6 +9,11 @@ struct TransitoApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact)
-        .defaultSize(width: 760, height: 560)
+        .defaultSize(width: 900, height: 620)
+
+        Settings {
+            PreferencesView()
+                .frame(width: 520, height: 420)
+        }
     }
 }

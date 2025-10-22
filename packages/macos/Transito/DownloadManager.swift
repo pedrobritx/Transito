@@ -7,7 +7,7 @@ class DownloadManager: ObservableObject {
     @Published var isDownloading = false
     @Published var progress: Double = 0.0
     @Published var statusMessage = ""
-    @Published var isError = false
+    @Published var errorMessage: String? = nil
     
     private let ffmpegInstaller = FFmpegInstaller()
     private var downloadTask: Task<Void, Never>?
@@ -20,45 +20,77 @@ class DownloadManager: ObservableObject {
         }
     }
     
-    func download(url: String, outputPath: String) async {
+    func download(
+        url: String,
+        outputPath: String,
+        extractSubtitles: Bool = false,
+        userAgent: String? = nil,
+        referer: String? = nil,
+        autoOpen: Bool = false
+    ) async {
         guard !url.isEmpty else {
-            statusMessage = "Please enter a URL"
-            isError = true
+            errorMessage = "Please enter a URL"
+            return
+        }
+        
+        guard !outputPath.isEmpty else {
+            errorMessage = "Please select an output folder"
             return
         }
         
         // Check/install ffmpeg if needed
         guard await ffmpegInstaller.ensureInstalled() else {
-            statusMessage = "ffmpeg installation required"
-            isError = true
+            errorMessage = "ffmpeg installation required"
             return
         }
         
         isDownloading = true
-        isError = false
+        errorMessage = nil
         progress = 0.0
         statusMessage = "Starting download..."
         
         downloadTask = Task {
             do {
-                let result = try await performDownload(url: url, outputPath: outputPath)
+                let result = try await performDownload(
+                    url: url,
+                    outputPath: outputPath,
+                    extractSubtitles: extractSubtitles,
+                    userAgent: userAgent,
+                    referer: referer
+                )
                 
                 if !Task.isCancelled {
                     if result.success {
-                        statusMessage = "✅ Download completed: \(result.outputPath)"
-                        isError = false
+                        statusMessage = "✅ Download completed!"
+                        errorMessage = nil
                         progress = 1.0
-                        sendNotification(title: "Download Complete", 
-                                      body: "HLS stream downloaded successfully")
+                        
+                        // Open file if autoOpen is enabled
+                        if autoOpen, let outputURL = result.outputURL {
+                            NSWorkspace.shared.open(outputURL)
+                        }
+                        
+                        sendNotification(
+                            title: "Download Complete",
+                            body: "HLS stream downloaded successfully"
+                        )
                     } else {
-                        statusMessage = "❌ Download failed: \(result.error ?? "Unknown error")"
-                        isError = true
+                        statusMessage = "Download failed"
+                        errorMessage = result.error ?? "Unknown error"
+                        sendNotification(
+                            title: "Download Failed",
+                            body: result.error ?? "Unknown error"
+                        )
                     }
                 }
             } catch {
                 if !Task.isCancelled {
-                    statusMessage = "❌ Download failed: \(error.localizedDescription)"
-                    isError = true
+                    statusMessage = "Download failed"
+                    errorMessage = error.localizedDescription
+                    sendNotification(
+                        title: "Download Failed",
+                        body: error.localizedDescription
+                    )
                 }
             }
             
@@ -70,27 +102,74 @@ class DownloadManager: ObservableObject {
         downloadTask?.cancel()
         isDownloading = false
         statusMessage = "Download cancelled"
+        errorMessage = nil
     }
     
-    private func performDownload(url: String, outputPath: String) async throws -> DownloadResult {
+    private func performDownload(
+        url: String,
+        outputPath: String,
+        extractSubtitles: Bool,
+        userAgent: String?,
+        referer: String?
+    ) async throws -> DownloadResult {
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                let result = self.runTransitoCLI(url: url, outputPath: outputPath)
+                let result = self.runTransitoCLI(
+                    url: url,
+                    outputPath: outputPath,
+                    extractSubtitles: extractSubtitles,
+                    userAgent: userAgent,
+                    referer: referer
+                )
                 continuation.resume(returning: result)
             }
         }
     }
     
-    private func runTransitoCLI(url: String, outputPath: String) -> DownloadResult {
+    private func runTransitoCLI(
+        url: String,
+        outputPath: String,
+        extractSubtitles: Bool,
+        userAgent: String?,
+        referer: String?
+    ) -> DownloadResult {
         let process = Process()
         
         // Get the bundled transito CLI tool
         guard let transitoPath = Bundle.main.url(forResource: "transito", withExtension: nil) else {
-            return DownloadResult(success: false, outputPath: "", error: "transito CLI tool not found in app bundle")
+            return DownloadResult(
+                success: false,
+                outputPath: "",
+                outputURL: nil,
+                error: "transito CLI tool not found in app bundle"
+            )
+        }
+        
+        var arguments: [String] = [url]
+        
+        // Determine output file path (MP4)
+        let outputMP4 = outputPath.hasSuffix("/") ?
+            outputPath + "video.mp4" :
+            outputPath + "/video.mp4"
+        arguments.append(outputMP4)
+        
+        // Add optional headers
+        if let ua = userAgent {
+            arguments.append("--user-agent")
+            arguments.append(ua)
+        }
+        if let ref = referer {
+            arguments.append("--referer")
+            arguments.append(ref)
+        }
+        
+        // Add subtitle extraction if enabled
+        if extractSubtitles {
+            arguments.append("--extract-subtitles")
         }
         
         process.executableURL = transitoPath
-        process.arguments = [url, outputPath, "--progress"]
+        process.arguments = arguments
         
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -110,23 +189,43 @@ class DownloadManager: ObservableObject {
                 buffer.append(data)
                 
                 // Process complete lines
-                while let line = String(data: buffer, encoding: .utf8)?.components(separatedBy: .newlines).first,
-                      buffer.count > line.utf8.count {
-                    buffer.removeFirst(line.utf8.count + 1)
-                    processProgressLine(line)
+                while let lineRange = buffer.range(of: Data("\n".utf8)) {
+                    let lineData = buffer.subdata(in: 0..<lineRange.lowerBound)
+                    if let line = String(data: lineData, encoding: .utf8) {
+                        processProgressLine(line)
+                    }
+                    buffer.removeFirst(lineRange.upperBound)
                 }
+                
+                usleep(100_000) // 100ms
             }
             
             process.waitUntilExit()
             
             if process.terminationStatus == 0 {
-                return DownloadResult(success: true, outputPath: outputPath, error: nil)
+                let outputURL = URL(fileURLWithPath: outputMP4)
+                return DownloadResult(
+                    success: true,
+                    outputPath: outputMP4,
+                    outputURL: outputURL,
+                    error: nil
+                )
             } else {
-                return DownloadResult(success: false, outputPath: "", error: "Process exited with code \(process.terminationStatus)")
+                return DownloadResult(
+                    success: false,
+                    outputPath: "",
+                    outputURL: nil,
+                    error: "Process exited with code \(process.terminationStatus)"
+                )
             }
             
         } catch {
-            return DownloadResult(success: false, outputPath: "", error: error.localizedDescription)
+            return DownloadResult(
+                success: false,
+                outputPath: "",
+                outputURL: nil,
+                error: error.localizedDescription
+            )
         }
     }
     
@@ -134,20 +233,30 @@ class DownloadManager: ObservableObject {
         let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
         
         if trimmedLine.hasPrefix("Progress:") {
-            // Extract time from "Progress: 12345ms"
             let components = trimmedLine.components(separatedBy: ":")
             if components.count >= 2 {
                 let timeString = components[1].trimmingCharacters(in: .whitespacesAndNewlines)
                 if let timeMs = Int(timeString.replacingOccurrences(of: "ms", with: "")) {
-                    // Convert to progress (this is a rough estimate)
-                    let progressValue = min(Double(timeMs) / 1000000.0, 1.0) // Assume max 1000 seconds
+                    let progressValue = min(Double(timeMs) / 1000000.0, 1.0)
                     DispatchQueue.main.async {
                         self.progress = progressValue
-                        self.statusMessage = "Downloading... \(timeMs)ms"
+                        self.statusMessage = "Downloading… \(self.formatBytes(timeMs))"
                     }
                 }
             }
+        } else if trimmedLine.contains("Downloaded") {
+            DispatchQueue.main.async {
+                self.statusMessage = trimmedLine
+                self.progress = 1.0
+            }
         }
+    }
+    
+    private func formatBytes(_ bytes: Int) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useBytes, .useKB, .useMB]
+        formatter.countStyle = .decimal
+        return formatter.string(fromByteCount: Int64(bytes))
     }
     
     private func sendNotification(title: String, body: String) {
@@ -173,5 +282,6 @@ class DownloadManager: ObservableObject {
 struct DownloadResult {
     let success: Bool
     let outputPath: String
+    let outputURL: URL?
     let error: String?
 }

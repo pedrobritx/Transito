@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 from urllib.parse import urljoin, urlparse
 
-VERSION = "v0.2.0"
+VERSION = "v0.3.0"
 
 
 def which(bin_name: str) -> str | None:
@@ -31,6 +31,12 @@ def guess_output_filename(url: str, ext: str = "mp4") -> str:
         return f"{base}.{ext}"
     except Exception:
         return f"video.{ext}"
+
+
+def get_subtitle_output_path(mp4_path: str) -> str:
+    """Get subtitle output path from MP4 path."""
+    base, _ = os.path.splitext(mp4_path)
+    return f"{base}.vtt"
 
 
 def _parse_attribute_line(line: str) -> dict[str, str]:
@@ -223,68 +229,34 @@ def build_ffmpeg_command(inputs: list[str], output: str, headers: dict = None) -
     return cmd
 
 
-def run_ffmpeg_with_progress(cmd: list[str], progress_callback=None) -> int:
-    """Run ffmpeg command and optionally report progress."""
-    runnable = list(cmd)
+def build_ffmpeg_subtitle_command(url: str, output: str, headers: dict = None) -> list[str]:
+    """Build ffmpeg command to extract subtitles from HLS."""
+    cmd: list[str] = ["ffmpeg", "-hide_banner", "-loglevel", "warning", "-nostdin"]
 
-    if progress_callback:
-        # Add progress reporting
-        runnable.insert(-1, "-progress")
-        runnable.insert(-1, "pipe:1")
-        
-        proc = subprocess.Popen(
-            runnable,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-        )
-        
-        # Read progress from stdout
-        if proc.stdout:
-            for line in proc.stdout:
-                line = line.strip()
-                if line.startswith("out_time_ms="):
-                    try:
-                        out_ms = int(line.split("=", 1)[1]) // 1000
-                        progress_callback(out_ms)
-                    except Exception:
-                        pass
-        
-        # Read errors from stderr
-        if proc.stderr:
-            for line in proc.stderr:
-                sys.stderr.write(line)
-        
-        return proc.wait()
-    else:
-        # Simple execution without progress
-        proc = subprocess.Popen(runnable, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
-        try:
-            for line in proc.stdout:
-                sys.stdout.write(line)
-        except KeyboardInterrupt:
-            proc.terminate()
-        return proc.wait()
+    header_value = None
+    if headers:
+        header_pairs = []
+        if headers.get("User-Agent"):
+            header_pairs.append(f"User-Agent: {headers['User-Agent']}")
+        if headers.get("Referer"):
+            header_pairs.append(f"Referer: {headers['Referer']}")
+        if header_pairs:
+            header_value = "\\r\\n".join(header_pairs) + "\\r\\n"
 
+    cmd.extend(["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "30"])
+    if header_value:
+        cmd.extend(["-headers", header_value])
+    cmd.extend(["-i", url])
 
-def download_hls(url: str, output: str = None, headers: dict = None,
-                 progress_callback=None, prepared: tuple[list[str], dict | None, str] | None = None
-                 ) -> tuple[int, dict | None]:
-    """Core HLS download logic using ffmpeg."""
-    if prepared:
-        cmd, info, output = prepared
-    else:
-        if not output:
-            output = guess_output_filename(url)
-        inputs, info = prepare_hls_inputs(url, headers)
-        cmd = build_ffmpeg_command(inputs, output, headers)
+    # Extract first subtitle stream as WebVTT
+    cmd.extend([
+        "-map", "0:s:0?",
+        "-c:s", "webvtt",
+        "-f", "webvtt",
+        output,
+    ])
 
-    # Ensure output directory exists
-    os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
-
-    code = run_ffmpeg_with_progress(cmd, progress_callback)
-    return code, info
+    return cmd
 
 
 def main():
@@ -293,15 +265,16 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  transito https://example.com/playlist.m3u8
-  transito https://example.com/playlist.m3u8 output.mp4
-  transito --user-agent "Custom UA" --referer "https://ref.com" https://example.com/playlist.m3u8
+  transito https://example.com/playlist.m3u8 -o output.mp4
+  transito https://example.com/playlist.m3u8 -o output.mp4 --extract-subtitles
+  transito --user-agent "Custom UA" --referer "https://ref.com" https://example.com/playlist.m3u8 -o video.mp4
         """
     )
     parser.add_argument('url', help='M3U8 playlist URL')
-    parser.add_argument('output', nargs='?', help='Output filename (default: guessed from URL)')
+    parser.add_argument('-o', '--output', help='Output MP4 filename')
     parser.add_argument('--user-agent', help='Custom User-Agent header')
     parser.add_argument('--referer', help='Custom Referer header')
+    parser.add_argument('--extract-subtitles', action='store_true', help='Extract subtitles as .vtt file')
     parser.add_argument('--progress', action='store_true', help='Show progress output')
     parser.add_argument('--dry-run', action='store_true', help='Show command without executing')
     parser.add_argument('--version', action='version', version=f'Transito {VERSION}')
@@ -319,13 +292,19 @@ Examples:
     if args.referer:
         headers['Referer'] = args.referer
 
-    inputs, variant_info = prepare_hls_inputs(args.url, headers)
     if not args.output:
         args.output = guess_output_filename(args.url)
+
+    inputs, variant_info = prepare_hls_inputs(args.url, headers)
     cmd = build_ffmpeg_command(inputs, args.output, headers)
     pretty_cmd = ' '.join(shlex.quote(x) for x in cmd)
     
     print(f'Transito {VERSION} — Writing to: {args.output}')
+    
+    if args.extract_subtitles:
+        output_vtt = get_subtitle_output_path(args.output)
+        print(f'Transito {VERSION} — Subtitles to: {output_vtt}')
+    
     if variant_info:
         stream_bits = []
         if variant_info.get("width") and variant_info.get("height"):
@@ -337,29 +316,66 @@ Examples:
             stream_bits.append(f"{variant_info['frame_rate']:.2f} fps")
         if stream_bits:
             print(f"Transito {VERSION} — Selected stream: {', '.join(stream_bits)}")
+    
     print(f'Transito {VERSION} — Running: {pretty_cmd}')
     
     if args.dry_run:
+        if args.extract_subtitles:
+            sub_cmd = build_ffmpeg_subtitle_command(args.url, get_subtitle_output_path(args.output), headers)
+            pretty_sub_cmd = ' '.join(shlex.quote(x) for x in sub_cmd)
+            print(f'Transito {VERSION} — Then: {pretty_sub_cmd}')
         return 0
     
-    progress_callback = None
-    if args.progress:
-        def progress_callback(out_ms: int):
-            print(f"Progress: {out_ms}ms", file=sys.stderr)
-    
-    code, _ = download_hls(
-        args.url,
-        args.output,
-        headers,
-        progress_callback,
-        prepared=(cmd, variant_info, args.output),
+    # Download video
+    proc = subprocess.Popen(
+        cmd,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+        bufsize=1,
     )
-    
-    if code == 0:
-        print(f"\n✅ Done: {args.output}")
-    else:
-        print(f"\n❌ ffmpeg exited with code {code}", file=sys.stderr)
-        sys.exit(code)
+    try:
+        for line in proc.stdout:
+            sys.stdout.write(line)
+    except KeyboardInterrupt:
+        proc.terminate()
+    finally:
+        code = proc.wait()
+        if code != 0:
+            print(f"\n❌ ffmpeg exited with code {code}", file=sys.stderr)
+            sys.exit(code)
+
+    print(f"\n✅ Video downloaded: {args.output}")
+
+    # Extract subtitles if requested
+    if args.extract_subtitles:
+        output_vtt = get_subtitle_output_path(args.output)
+        print(f"\nExtracting subtitles to {output_vtt}...")
+        
+        sub_cmd = build_ffmpeg_subtitle_command(args.url, output_vtt, headers)
+        pretty_sub_cmd = ' '.join(shlex.quote(x) for x in sub_cmd)
+        print(f'Running: {pretty_sub_cmd}')
+        
+        proc = subprocess.Popen(
+            sub_cmd,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+        try:
+            for line in proc.stdout:
+                sys.stdout.write(line)
+        except KeyboardInterrupt:
+            proc.terminate()
+        finally:
+            code = proc.wait()
+            if code != 0:
+                print(f"\n⚠️  Subtitle extraction failed with code {code}", file=sys.stderr)
+            else:
+                print(f"✅ Subtitles extracted: {output_vtt}")
+
+    print(f"\n✅ All done!")
 
 
 if __name__ == '__main__':
