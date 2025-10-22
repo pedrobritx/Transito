@@ -1,0 +1,268 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-and-release-macos:
+    name: Build macOS app & CLI and publish release
+    runs-on: macos-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    env:
+      APP_BUNDLE_ID: com.transito.hls-downloader
+      APP_NAME: Transito
+      OUTPUT_DIR: ${{ github.workspace }}/out
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (CLI)
+        run: |
+          python -m pip install --upgrade pip
+          pip install wheel
+
+      - name: Prepare output directory
+        run: mkdir -p "$OUTPUT_DIR"
+
+      - name: Build SwiftUI macOS app (xcodebuild)
+        run: |
+          set -e
+          # Build the app in release configuration. Adjust scheme/project if needed.
+          xcodebuild -project packages/macos/Transito/Transito.xcodeproj \
+            -scheme Transito -configuration Release \
+            -derivedDataPath build/derived
+
+          # Copy .app to out folder
+          APP_PATH="build/derived/Build/Products/Release/Transito.app"
+          if [ -d "$APP_PATH" ]; then
+            ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$OUTPUT_DIR/Transito.app.zip"
+          else
+            echo "Warning: App bundle not found at $APP_PATH — continuing without .app" >&2
+          fi
+
+      - name: Package CLI (zip)
+        run: |
+          set -e
+          CLI_STAGING="$OUTPUT_DIR/cli"
+          mkdir -p "$CLI_STAGING"
+          cp transito.py "$CLI_STAGING/transito"
+          cp transito_engine.py "$CLI_STAGING/"
+          chmod +x "$CLI_STAGING/transito"
+          pushd "$OUTPUT_DIR" >/dev/null
+          zip -r transito-cli.zip cli
+          popd >/dev/null
+
+      - name: Codesign and Notarize (macOS)
+        # Disabled by default. Enable by removing or setting to true and provide the required secrets.
+        if: false
+        run: |
+          echo "Codesign and notarize step is disabled in this workflow. To enable, provide required secrets and set the step conditional accordingly."
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: transito-app-macos
+          path: |
+            ${{ env.OUTPUT_DIR }}/Transito.app.zip
+            ${{ env.OUTPUT_DIR }}/Transito.app.zip.sha256
+
+      - name: Upload macOS CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: transito-cli-macos
+          path: |
+            ${{ env.OUTPUT_DIR }}/transito-cli.zip
+            ${{ env.OUTPUT_DIR }}/transito-cli.zip.sha256
+
+  build-cli:
+    name: Build CLI (cross-platform)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt || true; fi
+          # Test deps
+          pip install pytest
+
+      - name: Prepare output directory
+        run: mkdir -p out
+
+      - name: Run tests
+        run: |
+          if [ -d tests ]; then
+            pytest -q
+          else
+            echo "No tests directory found; skipping";
+          fi
+
+      - name: Build Python package
+        run: |
+          python -m pip install --upgrade build
+          python -m build --sdist --wheel -o out || true
+
+      - name: Package CLI (platform zip)
+        run: |
+          set -e
+          CLI_STAGING="out/cli"
+          rm -rf "$CLI_STAGING"
+          mkdir -p "$CLI_STAGING"
+          cp transito.py "$CLI_STAGING/transito"
+          cp transito_engine.py "$CLI_STAGING/"
+          chmod +x "$CLI_STAGING/transito" || true
+          pushd out >/dev/null
+          if [[ "${{ matrix.os }}" == 'ubuntu-latest' ]]; then
+            zip -r transito-cli-ubuntu.zip cli
+            shasum -a 256 transito-cli-ubuntu.zip > transito-cli-ubuntu.zip.sha256
+          fi
+          popd >/dev/null
+
+      - name: Package CLI (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Path out\cli | Out-Null
+          Copy-Item transito.py out\cli\transito
+          Copy-Item transito_engine.py out\cli\
+          # Ensure executable bit is not relevant on Windows; package the files
+          Compress-Archive -Path out\cli\* -DestinationPath out\transito-cli-windows.zip -Force
+          $hash = Get-FileHash -Path out\transito-cli-windows.zip -Algorithm SHA256
+          $hash.Hash | Out-File -Encoding ascii -FilePath out\transito-cli-windows.zip.sha256
+
+      - name: Upload Python packages
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-packages-${{ matrix.os }}
+          path: out/*.tar.gz
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: transito-cli-${{ matrix.os == 'windows-latest' && 'windows' || 'ubuntu' }}
+          path: |
+            out/*.zip
+            out/*.sha256
+
+  publish-release:
+    name: Publish Release and upload artifacts
+    runs-on: ubuntu-latest
+    needs: [build-and-release-macos, build-cli]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: transito-app-macos
+          path: out
+
+      - name: Download macOS CLI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: transito-cli-macos
+          path: out
+
+      - name: Download Linux CLI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: transito-cli-ubuntu
+          path: out
+
+      - name: Download Windows CLI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: transito-cli-windows
+          path: out
+
+      - name: List artifacts
+        run: ls -la out || true
+      - name: Extract release notes from CHANGELOG.md
+        id: extract_notes
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -e
+          VER="${TAG_NAME#v}"
+          OUT=out/release_notes.md
+          awk -v ver="$VER" '
+            $0 ~ "^## \["ver"\]" {print; flag=1; next}
+            /^## \[/ && flag {exit}
+            flag {print}
+          ' CHANGELOG.md > "$OUT" || true
+          if [ ! -s "$OUT" ]; then
+            echo "ERROR: No changelog section for $VER found in CHANGELOG.md" >&2
+            exit 1
+          fi
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          cat "$OUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate missing checksums for artifacts
+        run: |
+          set -e
+          cd out || exit 0
+          for f in *.zip; do
+            [ -f "$f" ] || continue
+            if [ ! -f "$f.sha256" ]; then
+              shasum -a 256 "$f" > "$f.sha256"
+            fi
+          done
+
+      - name: Build file list for release
+        id: build_files
+        run: |
+          set -e
+          cd out
+          TMP=files.txt
+          > "$TMP"
+          for f in *.zip *.zip.sha256 *.tar.gz *.whl 2>/dev/null; do
+            [ -f "$f" ] || continue
+            echo "out/$f" >> "$TMP"
+          done
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          cat "$TMP" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release and upload artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          body: ${{ steps.extract_notes.outputs.notes }}
+          files: ${{ steps.build_files.outputs.files }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
