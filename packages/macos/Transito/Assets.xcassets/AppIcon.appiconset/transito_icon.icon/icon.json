@@ -1,0 +1,184 @@
+{
+  "fill-specializations" : [
+    {
+      "value" : {
+        "solid" : "display-p3:0.48804,0.57524,0.83686,1.00000"
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "solid" : "display-p3:0.00000,0.01079,0.08124,1.00000"
+      }
+    }
+  ],
+  "groups" : [
+    {
+      "blend-mode" : "normal",
+      "blur-material" : 0.5,
+      "hidden" : false,
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "fill-specializations" : [
+            {
+              "value" : {
+                "linear-gradient" : [
+                  "display-p3:0.18693,0.00272,0.45327,1.00000",
+                  "display-p3:0.38428,0.00392,0.92139,1.00000"
+                ]
+              }
+            },
+            {
+              "appearance" : "dark",
+              "value" : {
+                "linear-gradient" : [
+                  "display-p3:0.12383,0.00000,0.30216,1.00000",
+                  "display-p3:0.24603,0.00000,0.60035,1.00000"
+                ]
+              }
+            }
+          ],
+          "glass-specializations" : [
+            {
+              "value" : true
+            },
+            {
+              "appearance" : "tinted",
+              "value" : true
+            }
+          ],
+          "hidden" : false,
+          "image-name" : "spaceship-3.png",
+          "name" : "spaceship-3",
+          "position" : {
+            "scale" : 0.6,
+            "translation-in-points" : [
+              0,
+              130
+            ]
+          }
+        }
+      ],
+      "lighting" : "individual",
+      "name" : "spaceship",
+      "opacity" : 1,
+      "position" : {
+        "scale" : 1.03,
+        "translation-in-points" : [
+          0,
+          0
+        ]
+      },
+      "shadow" : {
+        "kind" : "layer-color",
+        "opacity" : 0.5
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.15
+      }
+    },
+    {
+      "blend-mode" : "normal",
+      "blur-material" : 0.5,
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "fill-specializations" : [
+            {
+              "value" : {
+                "linear-gradient" : [
+                  "display-p3:0.85098,0.27213,0.08182,0.90000",
+                  "display-p3:0.73582,0.03668,0.00709,1.00000"
+                ]
+              }
+            },
+            {
+              "appearance" : "dark",
+              "value" : {
+                "linear-gradient" : [
+                  "display-p3:0.66035,0.21117,0.06349,0.90000",
+                  "display-p3:0.62504,0.03116,0.00602,1.00000"
+                ]
+              }
+            }
+          ],
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "fire-3.png",
+          "name" : "fire-3",
+          "opacity" : 1,
+          "position" : {
+            "scale" : 0.6,
+            "translation-in-points" : [
+              0,
+              -190
+            ]
+          }
+        }
+      ],
+      "lighting" : "individual",
+      "name" : "fire",
+      "shadow" : {
+        "kind" : "layer-color",
+        "opacity" : 0.5
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.15
+      }
+    },
+    {
+      "blend-mode" : "normal",
+      "blur-material" : 0.5,
+      "hidden" : false,
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "fill" : "none",
+          "glass" : true,
+          "image-name" : "Intersect-2 2.png",
+          "name" : "Intersect-2 2",
+          "opacity-specializations" : [
+            {
+              "value" : 0.7
+            },
+            {
+              "appearance" : "tinted",
+              "value" : 0.4
+            }
+          ]
+        }
+      ],
+      "lighting" : "individual",
+      "name" : "space",
+      "position" : {
+        "scale" : 1,
+        "translation-in-points" : [
+          0,
+          11
+        ]
+      },
+      "shadow" : {
+        "kind" : "layer-color",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.6
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : [
+      "iOS",
+      "macOS"
+    ]
+  }
+}
