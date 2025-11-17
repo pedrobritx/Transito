@@ -1,55 +1,69 @@
 import SwiftUI
-import AppKit
 
+/// Preferences/Settings view for Transito
 struct PreferencesView: View {
-    @AppStorage("defaultFolder") private var defaultFolderPath: String = ""
-    @AppStorage("defaultUA") private var defaultUA: String = ""
-    @AppStorage("defaultRef") private var defaultRef: String = ""
-    @AppStorage("autoOpenOnComplete") private var autoOpen: Bool = false
-
+    @AppStorage("autoOpen") private var autoOpen = false
+    @AppStorage("defaultOutputPath") private var defaultOutputPath = ""
+    
     var body: some View {
-        TabView {
-            Form {
-                Section(header: Text("Output")) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Default Folder")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(defaultFolderPath.isEmpty ? "Not set" : defaultFolderPath)
-                                .font(.callout)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                        Button(action: chooseDefaultFolder) {
-                            Label("Choose", systemImage: "folder")
-                        }
+        Form {
+            Section(header: Text("Download Settings")) {
+                Toggle("Auto-open downloads when complete", isOn: $autoOpen)
+                
+                HStack {
+                    TextField("Default output location", text: $defaultOutputPath)
+                        .textFieldStyle(.roundedBorder)
+                    
+                    Button("Choose...") {
+                        selectDefaultPath()
                     }
-
-                    Toggle("Open file on completion", isOn: $autoOpen)
-                }
-
-                Section(header: Text("Network")) {
-                    TextField("User-Agent (optional)", text: $defaultUA)
-                    TextField("Referer (optional)", text: $defaultRef)
                 }
             }
-            .tabItem {
-                Label("Output", systemImage: "square.and.arrow.down")
+            
+            Section(header: Text("About")) {
+                HStack {
+                    Text("Version:")
+                    Spacer()
+                    Text("0.4.0")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("ffmpeg:")
+                    Spacer()
+                    Text(checkFFmpegInstalled() ? "Installed" : "Not Installed")
+                        .foregroundColor(checkFFmpegInstalled() ? .green : .red)
+                }
             }
         }
-        .padding()
+        .formStyle(.grouped)
+        .frame(width: 500, height: 300)
     }
-
-    private func chooseDefaultFolder() {
+    
+    private func selectDefaultPath() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.message = "Select default download folder"
-
-        if panel.runModal() == .OK, let url = panel.url {
-            defaultFolderPath = url.path
+        
+        if panel.runModal() == .OK {
+            if let url = panel.url {
+                defaultOutputPath = url.path
+            }
+        }
+    }
+    
+    private func checkFFmpegInstalled() -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        process.arguments = ["ffmpeg"]
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
         }
     }
 }

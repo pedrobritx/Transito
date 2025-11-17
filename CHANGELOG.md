@@ -5,147 +5,55 @@ All notable changes to Transito will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - 2024-01-XX
+## [0.4.0] - 2025-11-17
 
-### 🎯 Major Focus Change
+### 🎉 Major Release - Native Swift Implementation
 
-- **macOS App Only**: Removed CLI and cross-platform components to focus solely on the native macOS experience
-- **Simplified Architecture**: Single codebase, single build target, streamlined development
+This release represents a complete rewrite of Transito in native Swift, removing all Python dependencies and providing a truly native macOS experience.
 
-### ✨ Added
+### Added
+- Native Swift HLSEngine for downloading streams
+- Complete Swift implementation of ffmpeg integration
+- Improved progress tracking with real-time updates
+- Better error handling and user feedback
 
-#### UI/UX Redesign
+### Changed
+- **BREAKING**: Removed Python-based CLI tool
+- **BREAKING**: Now macOS-only (13.0+)
+- Migrated from hybrid Python/Swift to pure Swift codebase
+- Updated to follow Apple Human Interface Guidelines
+- Streamlined UI with cleaner, more intuitive interface
+- Improved app architecture with modern Swift concurrency
 
-- **Liquid Glass Design**: Beautiful macOS 14+ glass effect with AngularGradient accents
-- **SwiftUI Native App**: Modern SwiftUI interface with native macOS look and feel
-- **Visual Effects**: NSVisualEffectView materials (.hudWindow, .thinMaterial, .ultraThinMaterial) with vibrancy
-- **Improved Layout**: Clean card-based design with proper spacing and visual hierarchy
-- **Accessibility**: Full VoiceOver support, proper labels, hints, and focus management
+### Removed
+- Python dependencies and scripts
+- CLI tool (app is now macOS GUI-only)
+- Unnecessary version displays in UI
+- Legacy Python engine code
 
-#### Subtitle Extraction
+### Technical Details
+- Built with Swift 5.9+ and SwiftUI
+- Uses modern async/await for download operations
+- Native Process execution for ffmpeg
+- Improved memory management and performance
 
-- **Subtitle Toggle**: Extract WebVTT subtitle files alongside MP4 downloads
-- **Automatic Output Path**: Subtitles saved as `.vtt` with same basename as output file
-- **Separate Extraction Process**: Runs WebVTT extraction after main download completes
-- **Graceful Fallback**: Continues if subtitle stream unavailable
+## [0.3.1] - Previous Release
 
-#### Preferences & Persistence
+### Added
+- macOS-first focus with SwiftUI interface
+- Drag-and-drop support for M3U8 URLs
+- Native macOS notifications
+- Automatic ffmpeg installation
 
-- **Native Settings Window**: Accessible via Cmd+, or menu (Transito → Settings)
-- **UserDefaults Storage**: Persistent user preferences across app launches
-  - Default download folder with picker button
-  - Custom User-Agent header
-  - Custom Referer header
-  - Auto-open downloaded files toggle
-- **Clean Form UI**: Organized settings with labels and descriptions
+### Changed
+- Improved user interface design
+- Better progress feedback
 
-#### CLI Enhancements
+## Earlier Versions
 
-- **HLS Variant Selection**: Automatic best-quality variant detection from master playlists
-- **Audio Track Selection**: Intelligent audio group and default track picking
-- **Stream Metadata Display**: Shows selected resolution, bitrate, and FPS before download
-- **Improved Header Support**: Custom User-Agent and Referer headers via CLI flags
-- **Dry-Run Mode**: `--dry-run` shows complete ffmpeg commands without executing
-- **Version Output**: `--version` shows v0.3.0
-
-#### Notifications & Feedback
-
-- **UserNotifications**: Native macOS notifications on completion/failure
-- **Real-Time Progress**: Live progress bar with visual status updates
-- **Error Display**: Inline error messages with full context
-- **Open on Complete**: Option to automatically launch downloaded files
-
-#### Engine Improvements
-
-- **Shared Python Engine**: New `transito_engine.py` module for CLI and app code sharing
-- **Robust HLS Parsing**: CSV-based attribute parsing for EXT-X-STREAM-INF and EXT-X-MEDIA tags
-- **Better Error Recovery**: Configurable reconnection and timeout parameters
-- **Progress Parsing**: Real-time ffmpeg progress pipe integration
-
-### 🔧 Changed
-
-- **Version Bump**: Updated to v0.3.0 across all packages
-- **transito.py**: Now uses `-o/--output` flags with proper argument parsing
-- **Info.plist**: Updated CFBundleShortVersionString to 0.3.0
-- **Engine Refactoring**: Consolidated ffmpeg builders into reusable functions
-- **CLI Architecture**: Cleaner separation of concerns with transito_engine.py
-
-### ✅ Fixed
-
-- Maintained WebVTT codec error fix from v0.2.0 (`-map 0:v? -map 0:a?`)
-- Proper subprocess communication with ffmpeg progress pipe
-- Correct header handling in subtitle extraction commands
-
-### 📦 Technical Details
-
-- **New Files**:
-
-  - `transito_engine.py`: Shared HLS parsing and ffmpeg builders
-  - `VisualEffectView.swift`: NSViewRepresentable glass material wrapper
-  - `PreferencesView.swift`: UserDefaults-backed settings form
-  - `CHANGELOG.md`: This file
-
-- **Updated Files**:
-  - `transito.py`: Version bump, subtitle extraction, improved CLI
-  - `ContentView.swift`: Complete liquid glass redesign
-  - `DownloadManager.swift`: Subtitle extraction, notifications, headers
-  - `TransitoApp.swift`: Window setup, preferences scene
-  - `VERSION`: 0.2.0 → 0.3.0
-  - `Info.plist`: Bundle version update
-
-### 🐛 Known Limitations
-
-- Subtitle extraction requires ffmpeg 4.1+ with WebVTT encoder
-- Progress precision depends on ffmpeg `-progress` output accuracy
-- macOS Notifications require User Notification Center opt-in
+See git history for details on versions prior to 0.3.1.
 
 ---
 
-## [0.2.0] - 2024-10-20
-
-### Fixed
-
-- **Critical Fix**: Resolved WebVTT subtitle codec error that prevented video downloads from HLS streams containing subtitles
-  - Changed ffmpeg mapping from `-map 0` to `-map 0:v? -map 0:a?`
-  - Now only maps video and audio streams, excluding incompatible subtitle streams
-  - Fixes error: "Could not find tag for codec webvtt in stream #0"
-
-### Changed
-
-- Added reconnection parameters to CLI for improved reliability with unstable streams
-  - `-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 30`
-- Updated all version strings across CLI, GUI, and app bundle to v0.2.0
-
-### Technical Details
-
-- Applied fix to all 6 code locations:
-  - Root CLI (`transito.py`)
-  - Root GUI (`transito_gui.py`)
-  - Core package (`packages/core/transito`)
-  - macOS package (`packages/macos/Transito/transito`)
-  - Bundled CLI (`Transito.app/Contents/Resources/transito`)
-  - Bundled GUI (`Transito.app/Contents/Resources/transito_gui.py`)
-
-## [0.1.0] - 2024-10-20
-
-### Added
-
-- Initial release of Transito HLS Downloader
-- CLI tool for terminal-based downloads
-- GUI application with Tkinter interface
-- macOS app bundle for easy installation
-- Support for custom headers (User-Agent, Referer)
-- Progress tracking with duration estimates
-- Dry-run mode for command preview
-- Auto-detection of ffmpeg/ffprobe
-- Stream-copy downloads (no re-encoding)
-- Fast-start optimization for MP4 files
-
-### Features
-
-- **Dual Interface**: Both CLI and GUI modes
-- **Cross-Platform**: CLI works on macOS, Linux, Windows
-- **Native macOS App**: Double-click to launch GUI
-- **Progress Tracking**: Real-time progress with time estimates
-- **Error Handling**: Detailed error messages and logging
-- **Reconnection**: Automatic reconnection for unstable streams
+[0.4.0]: https://github.com/pedrobritx/Transito/releases/tag/v0.4.0
+[0.3.1]: https://github.com/pedrobritx/Transito/releases/tag/v0.3.1
