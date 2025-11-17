@@ -9,6 +9,10 @@ class DownloadManager: ObservableObject {
     @Published var statusMessage = ""
     @Published var errorMessage: String? = nil
     
+    var isError: Bool {
+        return errorMessage != nil
+    }
+    
     private let ffmpegInstaller = FFmpegInstaller()
     private var downloadTask: Task<Void, Never>?
     

@@ -1,165 +1,100 @@
 # Transito - HLS Downloader
 
-A hybrid HLS (.m3u8) downloader available as both a lightweight CLI tool and a native macOS app.
+A native macOS app built with Swift and SwiftUI for downloading HLS (.m3u8) streams.
 
-## Architecture
+## Features
 
-This repository contains multiple packages:
+- **Native macOS App** — Built entirely with Swift and SwiftUI
+- **Drag & Drop** — Simply drag M3U8 URLs into the app
+- **Progress Tracking** — Real-time download progress with time estimates
+- **Native Notifications** — macOS notifications when downloads complete
+- **Custom Headers** — Support for User-Agent and Referer headers
+- **Auto-reconnection** — Handles unstable streams gracefully
+- **Stream-copy downloads** — No re-encoding for faster processing
 
-- **`packages/core/`** — Standalone CLI tool (`transito`) used by both interfaces
-- **`packages/macos/`** — Native SwiftUI macOS app with drag-drop and notifications
-- **`packages/homebrew/`** — Homebrew formula for CLI installation
-- **`scripts/`** — Build and distribution scripts
+## Installation
 
-## Installation Options
+### Download from GitHub
 
-### Option 1: CLI Tool (Recommended for Terminal Users)
-
-**Via Homebrew:**
-
-```bash
-brew install transito
-```
-
-**Manual Installation:**
-
-```bash
-# Install dependencies
-brew install python ffmpeg
-
-# Download and install CLI tool
-curl -L https://github.com/yourusername/transito/releases/latest/download/transito-cli.zip -o transito-cli.zip
-unzip transito-cli.zip
-sudo cp transito /usr/local/bin/
-sudo chmod +x /usr/local/bin/transito
-```
-
-### Option 2: Native macOS App (Recommended for GUI Users)
-
-**Download and Install:**
-
-1. Download `Transito-macOS.dmg` from [releases](https://github.com/yourusername/transito/releases)
-2. Open the DMG and drag `Transito.app` to Applications
+1. Download `Transito.app` from [releases](https://github.com/pedrobritx/Transito/releases)
+2. Drag `Transito.app` to your Applications folder
 3. Launch from Applications or Spotlight
-
-**Features:**
-
-- Drag-drop M3U8 URLs
-- Native macOS notifications
-- Auto-downloads ffmpeg on first launch
-- Beautiful SwiftUI interface
-
-## Usage
-
-### CLI Usage
-
-```bash
-# Basic download
-transito https://example.com/playlist.m3u8
-
-# Specify output file
-transito https://example.com/playlist.m3u8 output.mp4
-
-# With custom headers
-transito --user-agent "Custom UA" --referer "https://ref.com" https://example.com/playlist.m3u8
-
-# Show progress
-transito --progress https://example.com/playlist.m3u8
-
-# Dry run (show command without executing)
-transito --dry-run https://example.com/playlist.m3u8
-```
-
-### GUI Usage
-
-1. **Launch Transito.app**
-2. **Paste or drag-drop** an M3U8 URL
-3. **Choose output location** (optional)
-4. **Click Download** and watch progress
-5. **Get notified** when complete
+4. On first launch, the app will offer to download ffmpeg if not already installed
 
 ## Requirements
 
-- **macOS 13.0+** (for SwiftUI app)
-- **Python 3.10+** (for CLI tool)
-- **ffmpeg + ffprobe** (auto-installed by GUI, manual install for CLI)
+- **macOS 13.0+** (Ventura or later)
+- **ffmpeg** — Auto-installed on first launch, or install manually with `brew install ffmpeg`
 
-## Development
+## Usage
 
-### Building from Source
+1. **Launch Transito.app**
+2. **Paste or drag-drop** an M3U8 URL into the URL field
+3. **Choose output location** using the "Choose..." button
+4. **Click Download** and watch the progress
+5. **Get notified** when the download completes
 
-**CLI Tool:**
+## Building from Source
 
-```bash
-# Test the core CLI tool
-./packages/core/transito --help
-```
+### Requirements
 
-**macOS App:**
+- Xcode 14.0+
+- macOS 13.0+ SDK
 
-```bash
-# Build SwiftUI app
-./scripts/build_swift_app.sh
-
-# Or build Python-based app bundle
-./scripts/build_macos_app.sh
-```
-
-**Distribution Packages:**
+### Build Steps
 
 ```bash
-# Create all distribution packages
-./scripts/release.sh
+# Clone the repository
+git clone https://github.com/pedrobritx/Transito.git
+cd Transito
+
+# Open in Xcode
+open packages/macos/Transito.xcodeproj
+
+# Build and run from Xcode (⌘R)
 ```
 
-### Project Structure
+## Architecture
 
-```text
-transito/
-├── packages/
-│   ├── core/              # CLI tool (Python)
-│   │   ├── transito       # Main executable
-│   │   └── setup.py       # Package metadata
-│   ├── macos/             # SwiftUI app
-│   │   ├── Transito.xcodeproj
-│   │   └── Transito/      # Swift source files
-│   └── homebrew/          # Homebrew formula
-│       └── transito.rb
-├── scripts/               # Build scripts
-├── VERSION
-└── README.md
-```
+Transito is built with a modern Swift architecture:
 
-## Key Features
-
-- **Stream-copy downloads** (no re-encoding)
-- **Progress tracking** with time estimates
-- **Custom headers** support (User-Agent, Referer)
-- **Auto-reconnection** for unstable streams
-- **Cross-platform CLI** (works on Linux/Windows too)
-- **Native macOS integration** (notifications, drag-drop, file associations)
+- **TransitoApp.swift** — Main app entry point
+- **ContentView.swift** — Primary UI with drag-drop support
+- **HLSEngine.swift** — Core download engine using ffmpeg
+- **DownloadManager.swift** — Manages download state and notifications
+- **FFmpegInstaller.swift** — Handles automatic ffmpeg installation
 
 ## Troubleshooting
 
-**CLI Issues:**
+**App won't launch:**
+- Check macOS version (requires 13.0+)
+- Check Console.app for any error messages
 
-- `ffmpeg not found`: Run `brew install ffmpeg`
-- `Permission denied`: Run `sudo chmod +x /usr/local/bin/transito`
+**ffmpeg download fails:**
+- Check internet connection
+- Install manually: `brew install ffmpeg`
+- The app will detect ffmpeg in standard locations
 
-**GUI Issues:**
-
-- App won't launch: Check macOS version (13.0+ required)
-- ffmpeg download fails: Check internet connection, try CLI installation
-- Notifications not working: Check System Preferences > Notifications
+**Notifications not working:**
+- Go to System Settings > Notifications
+- Find Transito and enable notifications
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Test both CLI and GUI
+4. Test thoroughly
 5. Submit a pull request
+
+## Distribution
+
+This app is distributed through GitHub releases only, not through the Mac App Store.
 
 ## License
 
 MIT License - see LICENSE file for details.
+
+## Version
+
+Current version: v0.4.0
