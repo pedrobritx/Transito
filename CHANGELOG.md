@@ -7,19 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2024-01-XX
 
+### 🎯 Major Focus Change
+
+- **macOS App Only**: Removed CLI and cross-platform components to focus solely on the native macOS experience
+- **Simplified Architecture**: Single codebase, single build target, streamlined development
+
 ### ✨ Added
 
 #### UI/UX Redesign
 
 - **Liquid Glass Design**: Beautiful macOS 14+ glass effect with AngularGradient accents
-- **SwiftUI Native App**: Replaced legacy Tkinter GUI with modern SwiftUI interface
+- **SwiftUI Native App**: Modern SwiftUI interface with native macOS look and feel
 - **Visual Effects**: NSVisualEffectView materials (.hudWindow, .thinMaterial, .ultraThinMaterial) with vibrancy
 - **Improved Layout**: Clean card-based design with proper spacing and visual hierarchy
 - **Accessibility**: Full VoiceOver support, proper labels, hints, and focus management
 
 #### Subtitle Extraction
 
-- **`--extract-subtitles` CLI Flag**: Save WebVTT subtitle files alongside MP4 downloads
+- **Subtitle Toggle**: Extract WebVTT subtitle files alongside MP4 downloads
 - **Automatic Output Path**: Subtitles saved as `.vtt` with same basename as output file
 - **Separate Extraction Process**: Runs WebVTT extraction after main download completes
 - **Graceful Fallback**: Continues if subtitle stream unavailable
