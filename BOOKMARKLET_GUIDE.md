@@ -1,6 +1,6 @@
 # Transito M3U8 Finder Bookmarklet
 
-**One-click m3u8 discovery for Safari, Chrome, and Firefox**
+One-click m3u8 discovery for Safari, Chrome, and Firefox
 
 ## What is this?
 
@@ -92,7 +92,7 @@ cat transito_bookmarklet.js | \
 echo "javascript:$(cat transito_bookmarklet_minified.txt)" > transito_bookmarklet_minified.txt
 ```
 
-Or use an online minifier: https://javascript-minifier.com/
+Or use an online minifier: <https://javascript-minifier.com/>
 
 ## 🎯 Supported Sites
 

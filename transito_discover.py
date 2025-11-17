@@ -13,8 +13,9 @@ import json
 def discover_with_playwright(url: str) -> str | None:
     """Use Playwright to load page and capture m3u8 network requests."""
     try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
+        import importlib
+        sync_playwright = getattr(importlib.import_module("playwright.sync_api"), "sync_playwright")
+    except Exception:
         print("Error: playwright not installed", file=sys.stderr)
         print("Install with: pip install playwright && playwright install chromium", file=sys.stderr)
         return None
