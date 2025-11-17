@@ -3,6 +3,7 @@
 import argparse
 import csv
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -31,6 +32,139 @@ def guess_output_filename(url: str, ext: str = "mp4") -> str:
         return f"{base}.{ext}"
     except Exception:
         return f"video.{ext}"
+
+
+def resolve_url(url: str, headers: dict | None = None) -> str:
+    """
+    Resolve URL to m3u8 manifest by scraping HTML if necessary.
+    
+    If the URL ends with .m3u8, return it as-is.
+    Otherwise, try:
+    1. Scrape HTML for direct m3u8 links
+    2. Extract Kaltura partner/entry IDs to construct playManifest URL
+    3. Fall back to yt-dlp if available (handles JS-heavy sites)
+    
+    Returns the discovered m3u8 URL or the original URL if none found.
+    """
+    parsed = urlparse(url)
+    # If already a manifest, return as-is
+    if parsed.path.lower().endswith('.m3u8'):
+        return url
+    
+    # Fetch the page HTML
+    req_headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+    }
+    if headers:
+        if headers.get("User-Agent"):
+            req_headers["User-Agent"] = headers["User-Agent"]
+        if headers.get("Referer"):
+            req_headers["Referer"] = headers["Referer"]
+    
+    try:
+        request = urllib.request.Request(url, headers=req_headers)
+        with urllib.request.urlopen(request, timeout=15) as response:
+            html = response.read().decode("utf-8", errors="ignore")
+    except Exception as e:
+        print(f"Warning: Failed to fetch page for URL resolution: {e}", file=sys.stderr)
+        return url
+    
+    # Search for <video src="...m3u8..."> tags first (most reliable)
+    video_src_pattern = r'<video[^>]+src=["\']([^"\']+\.m3u8[^"\']*)["\']'
+    video_matches = re.findall(video_src_pattern, html, re.IGNORECASE | re.DOTALL)
+    
+    candidates = []
+    
+    # Prioritize <video> tag sources
+    for match in video_matches:
+        candidate = match.strip()
+        if not candidate.startswith('http'):
+            candidate = urljoin(url, candidate)
+        candidates.append(candidate)
+        print(f"→ Found in <video> tag: {candidate}", file=sys.stderr)
+    
+    # If no <video> tags, try other patterns
+    if not candidates:
+        patterns = [
+            # Direct Kaltura playManifest URLs
+            r'(https?://[^"\'\s]+/playManifest/[^"\'\s]+\.m3u8[^"\'\s]*)',
+            # Generic .m3u8 URLs in quotes or data attributes
+            r'(https?://[^"\'\s]+\.m3u8[^"\'\s]*)',
+            # Source tags
+            r'<source[^>]+src=["\']([^"\']+\.m3u8[^"\']*)["\']',
+            # Relative paths
+            r'["\']([^"\']+\.m3u8[^"\'\s]*)["\']',
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, html, re.IGNORECASE | re.DOTALL)
+            for match in matches:
+                candidate = match[0] if isinstance(match, tuple) else match
+                candidate = candidate.strip('\'"')
+                if not candidate.startswith('http'):
+                    candidate = urljoin(url, candidate)
+                candidates.append(candidate)
+    
+    if candidates:
+        discovered = candidates[0]
+        print(f"→ Discovered m3u8: {discovered}", file=sys.stderr)
+        return discovered
+    
+    # Try to extract Kaltura partner ID and entry ID to construct playManifest URL
+    partner_match = re.search(r'/p/(\d+)/', html)
+    entry_match = re.search(r'(?:entry_?[iI]d|entryId)["\':=\s]+["\']?([0-9a-zA-Z_]+)', html)
+    
+    if partner_match and entry_match:
+        partner_id = partner_match.group(1)
+        entry_id = entry_match.group(1)
+        constructed = f"https://cdnapisec.kaltura.com/p/{partner_id}/sp/{partner_id}00/playManifest/entryId/{entry_id}/protocol/https/format/applehttp/a.m3u8"
+        print(f"→ Constructed Kaltura m3u8 from entry {entry_id}: {constructed}", file=sys.stderr)
+        return constructed
+    
+    # Try yt-dlp as fallback (if available)
+    ytdlp_bin = which('yt-dlp')
+    if ytdlp_bin:
+        print(f"→ Trying yt-dlp to resolve URL...", file=sys.stderr)
+        try:
+            result = subprocess.run(
+                [ytdlp_bin, '-g', '--no-warnings', url],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                lines = result.stdout.strip().splitlines()
+                # yt-dlp -g returns direct URLs (may be multiple for video+audio)
+                # Prefer .m3u8 URLs if present
+                m3u8_urls = [line for line in lines if '.m3u8' in line.lower()]
+                if m3u8_urls:
+                    print(f"→ yt-dlp found m3u8: {m3u8_urls[0]}", file=sys.stderr)
+                    return m3u8_urls[0]
+                # Otherwise return first URL
+                if lines:
+                    print(f"→ yt-dlp found direct URL: {lines[0]}", file=sys.stderr)
+                    return lines[0]
+        except Exception as e:
+            print(f"Warning: yt-dlp failed: {e}", file=sys.stderr)
+    
+    # No m3u8 found, provide helpful guidance
+    print(f"", file=sys.stderr)
+    print(f"❌ Could not auto-discover m3u8 from page URL", file=sys.stderr)
+    print(f"", file=sys.stderr)
+    print(f"Quick fix: Find the m3u8 URL manually:", file=sys.stderr)
+    print(f"  1. Open the page in your browser", file=sys.stderr)
+    print(f"  2. Open DevTools (Cmd+Option+I on macOS)", file=sys.stderr)
+    print(f"  3. Go to Network tab, filter by 'm3u8'", file=sys.stderr)
+    print(f"  4. Play the video and copy the .m3u8 URL", file=sys.stderr)
+    print(f"  5. Run: transito '<M3U8_URL>' -o video.mp4", file=sys.stderr)
+    print(f"", file=sys.stderr)
+    print(f"Or install yt-dlp for automatic resolution:", file=sys.stderr)
+    print(f"  brew install yt-dlp   (macOS)", file=sys.stderr)
+    print(f"  pip install yt-dlp    (any OS)", file=sys.stderr)
+    print(f"", file=sys.stderr)
+    
+    # Return original URL (will likely fail, but ffmpeg error will be clear)
+    return url
 
 
 def get_subtitle_output_path(mp4_path: str) -> str:
@@ -295,7 +429,10 @@ Examples:
     if not args.output:
         args.output = guess_output_filename(args.url)
 
-    inputs, variant_info = prepare_hls_inputs(args.url, headers)
+    # Resolve page URL to m3u8 if necessary
+    resolved_url = resolve_url(args.url, headers)
+
+    inputs, variant_info = prepare_hls_inputs(resolved_url, headers)
     cmd = build_ffmpeg_command(inputs, args.output, headers)
     pretty_cmd = ' '.join(shlex.quote(x) for x in cmd)
     
@@ -321,7 +458,7 @@ Examples:
     
     if args.dry_run:
         if args.extract_subtitles:
-            sub_cmd = build_ffmpeg_subtitle_command(args.url, get_subtitle_output_path(args.output), headers)
+            sub_cmd = build_ffmpeg_subtitle_command(resolved_url, get_subtitle_output_path(args.output), headers)
             pretty_sub_cmd = ' '.join(shlex.quote(x) for x in sub_cmd)
             print(f'Transito {VERSION} — Then: {pretty_sub_cmd}')
         return 0
@@ -352,7 +489,7 @@ Examples:
         output_vtt = get_subtitle_output_path(args.output)
         print(f"\nExtracting subtitles to {output_vtt}...")
         
-        sub_cmd = build_ffmpeg_subtitle_command(args.url, output_vtt, headers)
+        sub_cmd = build_ffmpeg_subtitle_command(resolved_url, output_vtt, headers)
         pretty_sub_cmd = ' '.join(shlex.quote(x) for x in sub_cmd)
         print(f'Running: {pretty_sub_cmd}')
         
