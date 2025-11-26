@@ -3,9 +3,12 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @StateObject private var downloadManager = DownloadManager()
+    @StateObject private var discoveryManager = URLDiscoveryManager()
+    
     @State private var url: String = ""
     @State private var isDragging = false
     @State private var outputPath: String = ""
+    @State private var showDiscoverySheet = false
     
     var body: some View {
         VStack(spacing: 20) {
@@ -20,10 +23,10 @@ struct ContentView: View {
             VStack(spacing: 15) {
                 // URL input with drag-drop support
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("M3U8 URL:")
+                    Text("URL:")
                         .font(.headline)
                     
-                    TextField("Paste M3U8 URL or drag here", text: $url)
+                    TextField("Paste M3U8 or Web Page URL", text: $url)
                         .textFieldStyle(.roundedBorder)
                         .onDrop(of: [.url, .text], isTargeted: $isDragging) { providers in
                             handleDrop(providers: providers)
@@ -49,40 +52,59 @@ struct ContentView: View {
                     }
                 }
                 
-                // Download button
-                Button(action: {
-                    Task {
-                        await downloadManager.download(url: url, outputPath: outputPath)
-                    }
-                }) {
-                    HStack {
-                        if downloadManager.isDownloading {
-                            ProgressView()
-                                .scaleEffect(0.8)
+                // Action buttons
+                HStack(spacing: 10) {
+                    if downloadManager.isDownloading {
+                        Button("Cancel") {
+                            downloadManager.cancelDownload()
                         }
-                        Text(downloadManager.isDownloading ? "Downloading..." : "Download")
+                        .buttonStyle(.bordered)
+                    } else if discoveryManager.isScanning {
+                        ProgressView("Scanning...")
+                            .scaleEffect(0.8)
+                    } else {
+                        Button("Download") {
+                            startProcessing()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(url.isEmpty || outputPath.isEmpty)
                     }
-                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(url.isEmpty || downloadManager.isDownloading)
+                .frame(maxWidth: .infinity)
                 
                 // Progress view
                 if downloadManager.isDownloading {
                     VStack(spacing: 10) {
                         ProgressView(value: downloadManager.progress)
+                            .transition(.opacity)
                         Text(downloadManager.statusMessage)
                             .font(.caption)
                             .foregroundColor(.secondary)
+                            .transition(.opacity)
                     }
+                    .animation(.easeInOut, value: downloadManager.isDownloading)
                 }
                 
-                // Status message
-                if !downloadManager.statusMessage.isEmpty && !downloadManager.isDownloading {
-                    Text(downloadManager.statusMessage)
-                        .font(.caption)
-                        .foregroundColor(downloadManager.isError ? .red : .green)
-                        .multilineTextAlignment(.center)
+                // Status message & Show in Finder
+                if !downloadManager.isDownloading {
+                    VStack(spacing: 10) {
+                        if !downloadManager.statusMessage.isEmpty {
+                            Text(downloadManager.statusMessage)
+                                .font(.caption)
+                                .foregroundColor(downloadManager.isError ? .red : .green)
+                                .multilineTextAlignment(.center)
+                                .transition(.scale)
+                        }
+                        
+                        if let fileURL = downloadManager.lastDownloadedURL {
+                            Button("Show in Finder") {
+                                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                            }
+                            .buttonStyle(.link)
+                            .transition(.opacity)
+                        }
+                    }
+                    .animation(.spring(), value: downloadManager.lastDownloadedURL)
                 }
             }
             .padding()
@@ -91,9 +113,64 @@ struct ContentView: View {
         }
         .padding()
         .frame(width: 600, height: 500)
+        .sheet(isPresented: $showDiscoverySheet) {
+            URLDiscoveryView(
+                urls: discoveryManager.foundURLs,
+                onSelect: { selectedURL in
+                    showDiscoverySheet = false
+                    self.url = selectedURL
+                    // Auto start download after selection
+                    Task {
+                        await downloadManager.download(url: selectedURL, outputPath: outputPath)
+                    }
+                },
+                onCancel: {
+                    showDiscoverySheet = false
+                }
+            )
+        }
         .onAppear {
             // Request notification permissions
             downloadManager.requestNotificationPermission()
+            
+            // Set default output path if empty
+            if outputPath.isEmpty {
+                let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+                outputPath = downloads.appendingPathComponent("video.mp4").path
+            }
+        }
+    }
+    
+    private func startProcessing() {
+        guard !url.isEmpty else { return }
+        
+        // If it's already an m3u8, download directly
+        if url.lowercased().contains(".m3u8") {
+            Task {
+                await downloadManager.download(url: url, outputPath: outputPath)
+            }
+            return
+        }
+        
+        // Otherwise, try to discover
+        Task {
+            do {
+                let urls = try await discoveryManager.findM3U8Links(in: url)
+                if urls.isEmpty {
+                    downloadManager.errorMessage = "No video streams found"
+                    downloadManager.statusMessage = "No video streams found"
+                } else if urls.count == 1 {
+                    // Found exactly one, just download it
+                    self.url = urls[0]
+                    await downloadManager.download(url: urls[0], outputPath: outputPath)
+                } else {
+                    // Found multiple, show selection
+                    showDiscoverySheet = true
+                }
+            } catch {
+                downloadManager.errorMessage = error.localizedDescription
+                downloadManager.statusMessage = "Scanning failed: \(error.localizedDescription)"
+            }
         }
     }
     
@@ -124,12 +201,10 @@ struct ContentView: View {
     }
     
     private func selectOutputPath() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.allowedContentTypes = [UTType.mpeg4Movie, UTType.movie]
+        let panel = NSSavePanel()
+        panel.title = "Save Video"
         panel.nameFieldStringValue = "video.mp4"
+        panel.allowedContentTypes = [UTType.mpeg4Movie, UTType.movie]
         
         if panel.runModal() == .OK {
             if let url = panel.url {

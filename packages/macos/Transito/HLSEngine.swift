@@ -63,55 +63,59 @@ class HLSEngine {
         process.standardOutput = pipe
         process.standardError = pipe // ffmpeg writes progress to stdout with -progress pipe:1, but errors to stderr
         
-        return await withCheckedContinuation { continuation in
-            var outputBuffer = ""
-            
-            pipe.fileHandleForReading.readabilityHandler = { handle in
-                let data = handle.availableData
-                if data.isEmpty { return }
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                var outputBuffer = ""
                 
-                if let str = String(data: data, encoding: .utf8) {
-                    outputBuffer += str
+                pipe.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    if data.isEmpty { return }
                     
-                    // Parse progress
-                    let lines = str.components(separatedBy: .newlines)
-                    for line in lines {
-                        if line.startsWith("out_time_ms=") {
-                            let valueStr = line.replacingOccurrences(of: "out_time_ms=", with: "")
-                            if let ms = Double(valueStr) {
-                                // We don't know total duration easily with HLS, so we just show time downloaded
-                                let seconds = ms / 1000000.0 // out_time_ms is in microseconds
-                                let durationStr = formatDuration(seconds: seconds)
-                                progressHandler(0.5, "Downloaded: \(durationStr)") // Indeterminate progress
+                    if let str = String(data: data, encoding: .utf8) {
+                        outputBuffer += str
+                        
+                        // Parse progress
+                        let lines = str.components(separatedBy: .newlines)
+                        for line in lines {
+                            if line.startsWith("out_time_ms=") {
+                                let valueStr = line.replacingOccurrences(of: "out_time_ms=", with: "")
+                                if let ms = Double(valueStr) {
+                                    // We don't know total duration easily with HLS, so we just show time downloaded
+                                    let seconds = ms / 1000000.0 // out_time_ms is in microseconds
+                                    let durationStr = formatDuration(seconds: seconds)
+                                    progressHandler(0.5, "Downloaded: \(durationStr)") // Indeterminate progress
+                                }
                             }
                         }
                     }
                 }
-            }
-            
-            process.terminationHandler = { proc in
-                pipe.fileHandleForReading.readabilityHandler = nil
                 
-                let success = proc.terminationStatus == 0
-                let result = DownloadResult(
-                    success: success,
-                    outputPath: outputPath,
-                    outputURL: success ? URL(fileURLWithPath: outputPath) : nil,
-                    error: success ? nil : "ffmpeg exited with code \(proc.terminationStatus)"
-                )
-                continuation.resume(returning: result)
+                process.terminationHandler = { proc in
+                    pipe.fileHandleForReading.readabilityHandler = nil
+                    
+                    let success = proc.terminationStatus == 0
+                    let result = DownloadResult(
+                        success: success,
+                        outputPath: outputPath,
+                        outputURL: success ? URL(fileURLWithPath: outputPath) : nil,
+                        error: success ? nil : "ffmpeg exited with code \(proc.terminationStatus)"
+                    )
+                    continuation.resume(returning: result)
+                }
+                
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(returning: DownloadResult(
+                        success: false,
+                        outputPath: outputPath,
+                        outputURL: nil,
+                        error: error.localizedDescription
+                    ))
+                }
             }
-            
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(returning: DownloadResult(
-                    success: false,
-                    outputPath: outputPath,
-                    outputURL: nil,
-                    error: error.localizedDescription
-                ))
-            }
+        } onCancel: {
+            process.terminate()
         }
     }
     

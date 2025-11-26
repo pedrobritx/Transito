@@ -8,9 +8,14 @@ class DownloadManager: ObservableObject {
     @Published var progress: Double = 0.0
     @Published var statusMessage = ""
     @Published var errorMessage: String? = nil
+    @Published var lastDownloadedURL: URL? = nil
     
-    private let ffmpegInstaller = FFmpegInstaller()
+    private let ffmpegInstaller: FFmpegInstaller
     private var downloadTask: Task<Void, Never>?
+    
+    init(ffmpegInstaller: FFmpegInstaller = FFmpegInstaller()) {
+        self.ffmpegInstaller = ffmpegInstaller
+    }
     
     func requestNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
@@ -48,6 +53,7 @@ class DownloadManager: ObservableObject {
         errorMessage = nil
         progress = 0.0
         statusMessage = "Starting download..."
+        lastDownloadedURL = nil
         
         downloadTask = Task {
             do {
@@ -64,6 +70,7 @@ class DownloadManager: ObservableObject {
                         statusMessage = "✅ Download completed!"
                         errorMessage = nil
                         progress = 1.0
+                        lastDownloadedURL = result.outputURL
                         
                         // Open file if autoOpen is enabled
                         if autoOpen, let outputURL = result.outputURL {
@@ -113,13 +120,11 @@ class DownloadManager: ObservableObject {
         referer: String?
     ) async throws -> DownloadResult {
         // Use native Swift HLS engine
-        let outputMP4 = outputPath.hasSuffix("/") ?
-            outputPath + "video.mp4" :
-            outputPath + "/video.mp4"
+        // outputPath is now the full path to the file, not just the directory
         
         return try await HLSEngine.download(
             url: url,
-            outputPath: outputMP4,
+            outputPath: outputPath,
             extractSubtitles: extractSubtitles,
             userAgent: userAgent,
             referer: referer,
