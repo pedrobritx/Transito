@@ -16,9 +16,7 @@ if ! command -v xcodebuild >/dev/null 2>&1; then
     exit 1
 fi
 
-# Copy core CLI tool to Swift app resources
-echo "Copying core CLI tool to Swift app..."
-cp packages/core/transito packages/macos/Transito/
+
 
 # Build Swift app
 echo "Building SwiftUI app..."
